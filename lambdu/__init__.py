@@ -1,24 +1,12 @@
-from __future__ import print_function
-import boto3
-import subprocess
-import json
-import sys
-import os
-import zipfile
-import hashlib
-import base64
-import shutil
-import argparse
-import threading
 from concurrent.futures import ThreadPoolExecutor
 from IPython.core.magic import register_cell_magic
+from __future__ import print_function
 from tqdm import tqdm_notebook as tqdm
-import pickle
-import zlib
-import io
-import tempfile
-import inspect
-import distutils.spawn
+import boto3
+
+import distutils.spawn, subprocess, threading, argparse, tempfile, inspect, hashlib, \
+    zipfile, pickle, base64, shutil, json, zlib, sys, os, io
+
 
 AWS_PROFILE = 'default'
 FUNCTION_NAME = 'parallel_lambda'
@@ -27,15 +15,15 @@ DEFAULT_MEMORY = 128
 DEFAULT_TIMEOUT = 30
 MAX_CONCURRENCY = 1000
 
-threadLocal = threading.local()
-executor = ThreadPoolExecutor(max_workers=MAX_CONCURRENCY)
-session = boto3.Session(profile_name=AWS_PROFILE)
-lambdaClient = session.client('lambda')
+# the python package name. this is not configuration.
+name = "lambdu"
 
+threadLocal = threading.local()
+executor = None
 storedLambdas = {}
 
-
 if not distutils.spawn.find_executable("docker"):
+    # unable to find executable for docker
     print("Warning: Could not find `docker` executable. Lambdu will not be able to execute cells with pip dependencies.")
 else:
 
@@ -50,6 +38,15 @@ else:
         else:
             print("Warning: An error occurred when running `docker ps`. Lambdu will not be able to execute cells with pip dependencies.\n")
         print(streamdata.decode('utf-8').strip())
+
+
+def ensure_setup():
+    global executor
+    if executor is None:
+        executor = ThreadPoolExecutor(max_workers=MAX_CONCURRENCY)
+    if not hasattr(threadLocal, 'client'):
+        session = boto3.session.Session(profile_name=AWS_PROFILE)
+        threadLocal.lambdaClient = session.client('lambda')
 
 
 @register_cell_magic
@@ -108,9 +105,10 @@ def lambdu(line, cell):
         return
 
     if args.rm or args.reinstall:
-        ali = lambdaClient.get_alias(FunctionName=FUNCTION_NAME, Name=alias)
-        lambdaClient.delete_alias(FunctionName=FUNCTION_NAME, Name=ali['Name'])
-        lambdaClient.delete_function(FunctionName=FUNCTION_NAME, 
+        ensure_setup()
+        ali = threadLocal.lambdaClient.get_alias(FunctionName=FUNCTION_NAME, Name=alias)
+        threadLocal.lambdaClient.delete_alias(FunctionName=FUNCTION_NAME, Name=ali['Name'])
+        threadLocal.lambdaClient.delete_function(FunctionName=FUNCTION_NAME, 
             Qualifier=ali['FunctionVersion'])
         print('Deleted alias "%s".' % alias)
         
@@ -284,34 +282,36 @@ def build_lambda_package(dep_path, box_config):
     return pseudofile.getvalue()
 
 def create_or_update_alias(version, alias):
+    ensure_setup()
     try:
-        return lambdaClient.update_alias(
+        return threadLocal.lambdaClient.update_alias(
             FunctionName=FUNCTION_NAME, Name=alias, FunctionVersion=version)
-    except lambdaClient.exceptions.ResourceNotFoundException:    
-        return lambdaClient.create_alias(
+    except threadLocal.lambdaClient.exceptions.ResourceNotFoundException:    
+        return threadLocal.lambdaClient.create_alias(
             FunctionName=FUNCTION_NAME, Name=alias, FunctionVersion=version)
     
 
 def create_or_update_lambda(zipfile, box_config):
+    ensure_setup()
     runtime = box_config['runtime']
     memory = box_config['memory']
     timeout = box_config['timeout']
     handler = 'main.lambda_handler'
 
     try:
-        lambdaClient.update_function_configuration(
+        threadLocal.lambdaClient.update_function_configuration(
             FunctionName=FUNCTION_NAME,
             Timeout=timeout,
             Runtime=runtime,
             MemorySize=memory
         )
-        return lambdaClient.update_function_code(
+        return threadLocal.lambdaClient.update_function_code(
             FunctionName=FUNCTION_NAME,
             ZipFile=zipfile,
             Publish=True
         )
-    except lambdaClient.exceptions.ResourceNotFoundException:
-        return lambdaClient.create_function(
+    except threadLocal.lambdaClient.exceptions.ResourceNotFoundException:
+        return threadLocal.lambdaClient.create_function(
             FunctionName=FUNCTION_NAME, 
             Runtime=runtime,
             MemorySize=memory,
@@ -354,16 +354,17 @@ def ensure_deps(box_config):
 
 
 def remove_all_aliases():
-    aliases = lambdaClient.list_aliases(FunctionName=FUNCTION_NAME)['Aliases']
-    versions = lambdaClient.list_versions_by_function(
+    ensure_setup()
+    aliases = threadLocal.lambdaClient.list_aliases(FunctionName=FUNCTION_NAME)['Aliases']
+    versions = threadLocal.lambdaClient.list_versions_by_function(
         FunctionName=FUNCTION_NAME)['Versions']
 
     for ali in aliases:
-        lambdaClient.delete_alias(FunctionName=FUNCTION_NAME, Name=ali['Name'])
+        threadLocal.lambdaClient.delete_alias(FunctionName=FUNCTION_NAME, Name=ali['Name'])
 
     for ver in versions:
         if ver['Version'] == '$LATEST': continue
-        lambdaClient.delete_function(FunctionName=FUNCTION_NAME, Qualifier=ver['Version'])
+        threadLocal.lambdaClient.delete_function(FunctionName=FUNCTION_NAME, Qualifier=ver['Version'])
 
     print("Removed %d aliases, and %d versions" % (len(aliases), len(versions) - 1))
 
@@ -383,18 +384,17 @@ def make_alias_name(box_config):
 
 
 def lambda_exists(name, alias):
+    ensure_setup()
     try:
-        lambdaClient.invoke(FunctionName=name, InvocationType="DryRun", Qualifier=alias)
-    except lambdaClient.exceptions.ResourceNotFoundException:
+        threadLocal.lambdaClient.invoke(FunctionName=name, InvocationType="DryRun", Qualifier=alias)
+    except threadLocal.lambdaClient.exceptions.ResourceNotFoundException:
         return False
     return True
 
 
-def invokeThread(info):
-    if not hasattr(threadLocal, 'client'):
-        session = boto3.session.Session(profile_name=AWS_PROFILE)
-        threadLocal.client = session.client('lambda')
-    result = threadLocal.client.invoke(
+def invoke_thread(info):
+    ensure_setup()
+    result = threadLocal.lambdaClient.invoke(
         FunctionName=FUNCTION_NAME,
         InvocationType='RequestResponse',
         LogType='Tail',
@@ -418,6 +418,7 @@ def invokeThread(info):
 
 def invoke(config, data=1):
     tasks = []
+    ensure_setup()
     if isinstance(data, int):
         data = range(data)
     count = len(data)
@@ -433,9 +434,9 @@ def invoke(config, data=1):
         })
 
     if count == 1:
-        return invokeThread(tasks[0])
+        return invoke_thread(tasks[0])
     else:
-        return list(tqdm(executor.map(invokeThread, tasks), total=count))
+        return list(tqdm(executor.map(invoke_thread, tasks), total=count))
 
 
 def map(fname, data):
