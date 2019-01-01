@@ -117,11 +117,14 @@ def lambdu(line, cell):
 
     if args.rm or args.reinstall:
         ensure_setup()
-        ali = threadLocal.lambdaClient.get_alias(FunctionName=FUNCTION_NAME, Name=alias)
-        threadLocal.lambdaClient.delete_alias(FunctionName=FUNCTION_NAME, Name=ali['Name'])
-        threadLocal.lambdaClient.delete_function(FunctionName=FUNCTION_NAME, 
-            Qualifier=ali['FunctionVersion'])
-        eprint('Deleted alias "%s".' % alias)
+        try:
+            ali = threadLocal.lambdaClient.get_alias(FunctionName=FUNCTION_NAME, Name=alias)
+            threadLocal.lambdaClient.delete_alias(FunctionName=FUNCTION_NAME, Name=ali['Name'])
+            threadLocal.lambdaClient.delete_function(FunctionName=FUNCTION_NAME, 
+                Qualifier=ali['FunctionVersion'])
+            eprint('Deleted alias "%s".' % alias)
+        except threadLocal.lambdaClient.exceptions.ResourceNotFoundException:
+            pass
         
         if args.rm:
             return
@@ -140,10 +143,11 @@ def lambdu(line, cell):
 
     if args.name:
         storedLambdas[args.name] = run_config
+        eprint('Invoke stored cell with `lambdu.invoke("%s")` or `lambdu.map("%s", [1, 2, ...])`' % (args.name, args.name))
         return None
 
     if args.n > 1:
-        return invoke(run_config, args.n)
+        return map(run_config, range(args.n))
     else:
         return invoke(run_config)
 
@@ -153,7 +157,6 @@ def install_lambda_deps(path, box_config):
     runtime = box_config['runtime']
 
     if len(requirements) == 0:
-        eprint("No dependencies to install...")
         return
 
     if 'python' in box_config['runtime']:
@@ -187,8 +190,6 @@ def install_lambda_deps(path, box_config):
 # Based on: https://stackoverflow.com/a/47130538
 
 LAMBDA_TEMPLATE_PYTHON = """
-from __future__ import print_function
-
 import os, sys, ast, pprint, pickle, base64, zlib
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'python_lambda_deps'))
@@ -197,7 +198,8 @@ def pickle_serialize(out):
     try:
         data = base64.b64encode(zlib.compress(pickle.dumps(out, 2))).decode('utf-8')
         if len(data) > 5 * 1024 * 1024:
-            print('WARN/LAMBDU: Pickle serialization exceeds 5MB, not returning result.')
+            # Don't use print() because this code needs to run on both py2k and py3k
+            sys.stdout.write('WARN/LAMBDU: Pickle serialization exceeds 5MB, not returning result.\\n')
             return (False, None)
         return (True, data)
     except Exception:
@@ -359,7 +361,7 @@ def make_alias_name(box_config):
     h = hashlib.sha256(b'1')
     for req in requirements: h.update(req.encode('utf-8'))
     reqs = '_'.join(requirements)[:100]
-    if reqs == '': reqs = 'NONE'
+    if reqs == '': reqs = 'NO-DEPS'
     return ('%s-%dM-%ds-%s-' % (
         box_config['runtime'].replace('.', ''), 
         box_config['memory'], 
@@ -400,13 +402,18 @@ def invoke_thread(info):
             return data
 
 
-def invoke(run_config, data=1):
-    tasks = []
-    ensure_setup()
-    if isinstance(data, int):
-        data = range(data)
-    count = len(data)
+def invoke(run_config, data = 0):
+    return map(run_config, [data])[0]
 
+
+def map(run_config, data = [0]):
+    ensure_setup()
+    
+    if isinstance(run_config, str):
+        run_config = storedLambdas[run_config]
+
+    count = len(data)
+    tasks = []
 
     for i, data in enumerate(data):
         tasks.append({
@@ -420,11 +427,7 @@ def invoke(run_config, data=1):
         })
 
     if count == 1:
-        return invoke_thread(tasks[0])
+        return [invoke_thread(tasks[0])]
     else:
         return list(tqdm(executor.map(invoke_thread, tasks), total=count))
-
-
-def map(fname, data):
-    return invoke(storedLambdas[fname], data)
 
