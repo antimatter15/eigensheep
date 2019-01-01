@@ -1,10 +1,4 @@
-FUNCTION_NAME = 'parallel_lambda'
-LAMBDA_ROLE = 'arn:aws:iam::972882471061:role/lambda_exec_role'
-DEFAULT_MEMORY = 128
-DEFAULT_TIMEOUT = 30
-AWS_PROFILE = 'paralambda'
-NUM_THREADS = 1000
-
+from __future__ import print_function
 import boto3
 import subprocess
 import json
@@ -24,13 +18,39 @@ import zlib
 import io
 import tempfile
 import inspect
+import distutils.spawn
+
+AWS_PROFILE = 'default'
+FUNCTION_NAME = 'parallel_lambda'
+LAMBDA_ROLE = 'arn:aws:iam::972882471061:role/lambda_exec_role'
+DEFAULT_MEMORY = 128
+DEFAULT_TIMEOUT = 30
+MAX_CONCURRENCY = 1000
 
 threadLocal = threading.local()
-executor = ThreadPoolExecutor(max_workers=NUM_THREADS)
+executor = ThreadPoolExecutor(max_workers=MAX_CONCURRENCY)
 session = boto3.Session(profile_name=AWS_PROFILE)
 lambdaClient = session.client('lambda')
 
 storedLambdas = {}
+
+
+if not distutils.spawn.find_executable("docker"):
+    print("Warning: Could not find `docker` executable. Lambdu will not be able to execute cells with pip dependencies.")
+else:
+
+    child = subprocess.Popen(['docker', 'ps'], stderr=subprocess.PIPE)
+    streamdata = child.communicate()[1]
+    # if there was some error in running `docker ps`
+    if child.returncode != 0:
+        if 'permission denied' in str(streamdata):
+            print("Warning: Permission denied to invoke `docker`. " + \
+                "Consider following this tutorial to allow docker to be managed by non-root users: " + \
+                "https://docs.docker.com/install/linux/linux-postinstall/#manage-docker-as-a-non-root-user\n")
+        else:
+            print("Warning: An error occurred when running `docker ps`. Lambdu will not be able to execute cells with pip dependencies.\n")
+        print(streamdata.decode('utf-8').strip())
+
 
 @register_cell_magic
 def lambdu(line, cell):
@@ -45,7 +65,7 @@ def lambdu(line, cell):
                         help='amount of memory in 64MB increments from 128 up to 3008')
 
     parser.add_argument('--timeout', default=DEFAULT_TIMEOUT, type=int,
-                        help='lambda execution timeout in seconds up to 300 (5 minutes)')
+                        help='lambda execution timeout in seconds up to 900 (15 minutes)')
 
     parser.add_argument('--no_install', action='store_true',
                         help='do not install dependencies if not found')
@@ -232,7 +252,6 @@ def lambda_handler(event, context):
     globalenv = {
         'INDEX': event['index']
     }
-
     output = {
         'machine': os.environ['AWS_LAMBDA_LOG_STREAM_NAME']
     }
@@ -303,7 +322,7 @@ def create_or_update_lambda(zipfile, box_config):
             Handler=handler,
             Publish=True,
             Role=LAMBDA_ROLE,
-            Description='Parallel Lambda Worker'
+            Description='Lambdu Parallel Lambda Worker'
         )
 
 
@@ -375,7 +394,6 @@ def invokeThread(info):
     if not hasattr(threadLocal, 'client'):
         session = boto3.session.Session(profile_name=AWS_PROFILE)
         threadLocal.client = session.client('lambda')
-
     result = threadLocal.client.invoke(
         FunctionName=FUNCTION_NAME,
         InvocationType='RequestResponse',
@@ -384,8 +402,6 @@ def invokeThread(info):
         Qualifier=info['alias']
     )
     data = json.load(result['Payload'])
-
-    # 'ALIAS: %s (%s)\n' % (info['alias'], data['machine']), 
     for line in base64.b64decode(result['LogResult']).decode('utf-8').split('\n')[:-1]:
         is_aws = line.startswith('START ') or line.startswith('END ') or line.startswith('REPORT ')
         if (not is_aws) or (info['verbose']):
@@ -402,12 +418,9 @@ def invokeThread(info):
 
 def invoke(config, data=1):
     tasks = []
-
     if isinstance(data, int):
         data = range(data)
-
     count = len(data)
-
     for i, data in enumerate(data):
         tasks.append({
             'alias': config['alias'],
