@@ -1,6 +1,7 @@
-from concurrent.futures import ThreadPoolExecutor
-from IPython.core.magic import register_cell_magic
 from __future__ import print_function
+
+from IPython.core.magic import register_cell_magic
+from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm_notebook as tqdm
 import boto3
 
