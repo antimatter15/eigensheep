@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+from IPython.core.display import display, HTML
 from IPython.core.magic import register_cell_magic
 from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm_notebook as tqdm
@@ -23,9 +24,12 @@ threadLocal = threading.local()
 executor = None
 storedLambdas = {}
 
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
+
 if not distutils.spawn.find_executable("docker"):
     # unable to find executable for docker
-    print("Warning: Could not find `docker` executable. Lambdu will not be able to execute cells with pip dependencies.")
+    eprint("Warning: Could not find `docker` executable. Lambdu will not be able to execute cells with pip dependencies.")
 else:
 
     child = subprocess.Popen(['docker', 'ps'], stderr=subprocess.PIPE)
@@ -33,12 +37,14 @@ else:
     # if there was some error in running `docker ps`
     if child.returncode != 0:
         if 'permission denied' in str(streamdata):
-            print("Warning: Permission denied to invoke `docker`. " + \
+            eprint("Warning: Permission denied to invoke `docker`. " + \
                 "Consider following this tutorial to allow docker to be managed by non-root users: " + \
                 "https://docs.docker.com/install/linux/linux-postinstall/#manage-docker-as-a-non-root-user\n")
         else:
-            print("Warning: An error occurred when running `docker ps`. Lambdu will not be able to execute cells with pip dependencies.\n")
-        print(streamdata.decode('utf-8').strip())
+            eprint("Warning: An error occurred when running `docker ps`. Lambdu will not be able to execute cells with pip dependencies.\n")
+        eprint(streamdata.decode('utf-8').strip())
+
+display(HTML('Prefix cells with <code>%%lambdu [-n CONCURRENCY] [dependencies...]</code> to run in AWS Lambda. <a target="_blank" href="https://github.com/antimatter15/lambdu">Learn more...</a>'))
 
 
 def ensure_setup():
@@ -52,6 +58,10 @@ def ensure_setup():
 
 @register_cell_magic
 def lambdu(line, cell):
+    default_lambda_runtime = 'python3.6'
+    if sys.version_info[0] == 2:
+        default_lambda_runtime = 'python2.7'
+
     parser = argparse.ArgumentParser(
         prog='lambdu', 
         description='Jupyter cell magic to invoke cell on AWS Lambda')
@@ -77,7 +87,7 @@ def lambdu(line, cell):
     parser.add_argument('--reinstall', action='store_true',
                         help='uninstall and reinstall')
 
-    parser.add_argument('--runtime', type=str, default='python3.6',
+    parser.add_argument('--runtime', type=str, default=default_lambda_runtime,
                         help='which runtime (python3.6, python2.7)')
 
     parser.add_argument('-n', type=int, default=1,
@@ -111,17 +121,18 @@ def lambdu(line, cell):
         threadLocal.lambdaClient.delete_alias(FunctionName=FUNCTION_NAME, Name=ali['Name'])
         threadLocal.lambdaClient.delete_function(FunctionName=FUNCTION_NAME, 
             Qualifier=ali['FunctionVersion'])
-        print('Deleted alias "%s".' % alias)
+        eprint('Deleted alias "%s".' % alias)
         
         if args.rm:
             return
 
     if not args.no_install and not lambda_exists(FUNCTION_NAME, alias):
         ensure_deps(box_config)
-        print(("-" * 100) +  "\n")
+        # eprint(("-" * 100) +  "\n")
 
 
     run_config = {
+        'box': box_config,
         'alias': alias,
         'code': cell,
         'verbose': args.verbose
@@ -142,7 +153,7 @@ def install_lambda_deps(path, box_config):
     runtime = box_config['runtime']
 
     if len(requirements) == 0:
-        print("No dependencies to install...")
+        eprint("No dependencies to install...")
         return
 
     if 'python' in box_config['runtime']:
@@ -165,38 +176,26 @@ def install_lambda_deps(path, box_config):
     for line in proc.stdout:
         line = line.decode('utf-8')
         if 'Downloading ' not in line and line.strip() != '':
-            print(line.strip())
+            eprint(line.strip())
 
     for line in proc.stderr:
-        print(line, end='')
+        eprint(line, end='')
 
 
 # TODO: consider using https://github.com/ipython/ipython/blob/
 #                      master/IPython/core/interactiveshell.py
 # Based on: https://stackoverflow.com/a/47130538
 
-LAMBDA_TEMPLATE_PY36 = """
-import os
-import sys
-import ast
-import json
-import pprint
-import pickle
-import base64
-import zlib
+LAMBDA_TEMPLATE_PYTHON = """
+from __future__ import print_function
+
+import os, sys, ast, pprint, pickle, base64, zlib
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'python_lambda_deps'))
 
-def is_json_serializable(out):
-    try:
-        json.dumps(out)
-    except TypeError:
-        return False
-    return True
-
 def pickle_serialize(out):
     try:
-        data = base64.b64encode(zlib.compress(pickle.dumps(out))).decode('utf-8')
+        data = base64.b64encode(zlib.compress(pickle.dumps(out, 2))).decode('utf-8')
         if len(data) > 5 * 1024 * 1024:
             print('WARN/LAMBDU: Pickle serialization exceeds 5MB, not returning result.')
             return (False, None)
@@ -238,23 +237,7 @@ def my_exec(script, globals=None, locals=None):
             filename="<ast>", mode="eval"), globals, locals)
     else:
         # otherwise we just execute the entire code
-        return exec(script, globals, locals)
-"""
-
-LAMBDA_TEMPLATE_PY27 = """
-import os
-import sys
-
-sys.path.append(os.path.join(os.path.dirname(__file__), 'python_lambda_deps'))
-
-def lambda_handler(event, context):
-    globalenv = {
-        'INDEX': event['index']
-    }
-    output = {
-        'machine': os.environ['AWS_LAMBDA_LOG_STREAM_NAME']
-    }
-    return output
+        exec(script, globals, locals)
 """
 
 
@@ -275,9 +258,9 @@ def build_lambda_package(dep_path, box_config):
     
     zipdir(zipf, 'python_lambda_deps/', dep_path)
     if box_config['runtime'] == 'python2.7':
-        zipstr(zipf, 'main.py', LAMBDA_TEMPLATE_PY27)
+        zipstr(zipf, 'main.py', LAMBDA_TEMPLATE_PYTHON)
     elif box_config['runtime'] == 'python3.6':
-        zipstr(zipf, 'main.py', LAMBDA_TEMPLATE_PY36)
+        zipstr(zipf, 'main.py', LAMBDA_TEMPLATE_PYTHON)
 
     zipf.close()
     return pseudofile.getvalue()
@@ -335,23 +318,23 @@ def human_size(bytes, units=[' bytes','KB','MB','GB','TB', 'PB', 'EB']):
 def ensure_deps(box_config):
     alias = make_alias_name(box_config)
     if lambda_exists(FUNCTION_NAME, alias):
-        print("Alias '%s' already exists." % alias)
+        eprint("Alias '%s' already exists." % alias)
         return
     # path = tempfile.mkdtemp('python_lambda_deps')
     # os.chmod(path, 0o777)
     path = os.path.join(os.getcwd(), 'temp_lambda_deps')
     if os.path.exists(path):
         shutil.rmtree(path)
-    print("Installing %d dependencies..." % len(box_config['requirements']))
+    eprint("Installing %d dependencies..." % len(box_config['requirements']))
     install_lambda_deps(path, box_config)
-    print("Building Lambda package...")
+    eprint("Building Lambda package...")
     package_contents = build_lambda_package(path, box_config)
     if os.path.exists(path):
         shutil.rmtree(path)
-    print("Uploading package to AWS (%s)..." % human_size(len(package_contents)))
+    eprint("Uploading package to AWS (%s)..." % human_size(len(package_contents)))
     result = create_or_update_lambda(package_contents, box_config)
     create_or_update_alias(result['Version'], alias)
-    print("Successfully deployed as '%s'." % alias)
+    eprint("Successfully deployed as '%s'." % alias)
 
 
 def remove_all_aliases():
@@ -367,7 +350,7 @@ def remove_all_aliases():
         if ver['Version'] == '$LATEST': continue
         threadLocal.lambdaClient.delete_function(FunctionName=FUNCTION_NAME, Qualifier=ver['Version'])
 
-    print("Removed %d aliases, and %d versions" % (len(aliases), len(versions) - 1))
+    eprint("Removed %d aliases, and %d versions" % (len(aliases), len(versions) - 1))
 
 
 
@@ -417,20 +400,22 @@ def invoke_thread(info):
             return data
 
 
-def invoke(config, data=1):
+def invoke(run_config, data=1):
     tasks = []
     ensure_setup()
     if isinstance(data, int):
         data = range(data)
     count = len(data)
+
+
     for i, data in enumerate(data):
         tasks.append({
-            'alias': config['alias'],
-            'verbose': config.get('verbose', False),
+            'alias': run_config['alias'],
+            'verbose': run_config.get('verbose', False),
             'payload': json.dumps({
-                'code': config['code'],
+                'code': run_config['code'],
                 'index': i,
-                'zpickle64': base64.b64encode(zlib.compress(pickle.dumps(data))).decode('utf-8')
+                'zpickle64': base64.b64encode(zlib.compress(pickle.dumps(data, 2))).decode('utf-8')
             })
         })
 
