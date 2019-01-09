@@ -143,7 +143,7 @@ def lambdu(line, cell):
 
     if args.name:
         storedLambdas[args.name] = run_config
-        eprint('Invoke stored cell with `lambdu.invoke("%s")` or `lambdu.map("%s", [1, 2, ...])`' % (args.name, args.name))
+        eprint('Invoke this stored cell with `lambdu.invoke("%s")` or `lambdu.map("%s", [1, 2, ...])`' % (args.name, args.name))
         return None
 
     if args.n > 1:
@@ -174,15 +174,19 @@ def install_lambda_deps(path, box_config):
              '--entrypoint', '/var/lang/bin/npm', 'lambci/lambda:build-' + runtime, 
              'install', '--cache=/tmp/.npm'] + requirements, 
             stdout=subprocess.PIPE, 
-            stderr=subprocess.PIPE)
+            stderr=subprocess.STDOUT)
 
     for line in proc.stdout:
         line = line.decode('utf-8')
         if 'Downloading ' not in line and line.strip() != '':
             eprint(line.strip())
 
-    for line in proc.stderr:
-        eprint(line, end='')
+    # for line in proc.stderr:
+    #     eprint(line, end='')
+
+    if child.returncode != 0:
+        raise Exception("Unable to install dependencies. Make sure that Docker is installed, " + \
+            "running, and the current user has permissions to manage the Docker daemon.")
 
 
 # TODO: consider using https://github.com/ipython/ipython/blob/
@@ -242,6 +246,23 @@ def my_exec(script, globals=None, locals=None):
         exec(script, globals, locals)
 """
 
+LAMBDA_TEMPLATE_NODEJS = """
+module.exports.lambda_handler = function(event, context, callback){
+    var result = eval(event.code);
+
+    var output = {
+        'machine': process.env['AWS_LAMBDA_LOG_STREAM_NAME'],
+        'pretty': require('util').inspect(result)
+    }
+    try {
+        var s = JSON.stringify(result)
+        if(s.length < 5 * 1024 * 1024){
+            output['json'] = result;
+        }
+    } catch (err) { }
+    callback(null, output);
+}
+"""
 
 def zipdir(ziph, path, realpath):
     for root, dirs, files in os.walk(realpath):
@@ -258,11 +279,13 @@ def build_lambda_package(dep_path, box_config):
     pseudofile = io.BytesIO()
     zipf = zipfile.ZipFile(pseudofile, 'w', zipfile.ZIP_DEFLATED)
     
-    zipdir(zipf, 'python_lambda_deps/', dep_path)
-    if box_config['runtime'] == 'python2.7':
+    if 'python' in box_config['runtime']:
+        zipdir(zipf, 'python_lambda_deps/', dep_path)
         zipstr(zipf, 'main.py', LAMBDA_TEMPLATE_PYTHON)
-    elif box_config['runtime'] == 'python3.6':
-        zipstr(zipf, 'main.py', LAMBDA_TEMPLATE_PYTHON)
+    
+    elif 'nodejs' in box_config['runtime']:
+        zipdir(zipf, '', dep_path)
+        zipstr(zipf, 'main.js', LAMBDA_TEMPLATE_NODEJS)
 
     zipf.close()
     return pseudofile.getvalue()
@@ -396,15 +419,12 @@ def invoke_thread(info):
     if data is not None:
         if 'zpickle64' in data:
             return pickle.loads(zlib.decompress(base64.b64decode(data['zpickle64'])))
+        elif 'json' in data:
+            return data['json']
         elif 'pretty' in data:
             return data['pretty']
         else:
             return data
-
-
-def invoke(run_config, data = 0):
-    return map(run_config, [data])[0]
-
 
 def map(run_config, data = [0]):
     ensure_setup()
@@ -414,20 +434,32 @@ def map(run_config, data = [0]):
 
     count = len(data)
     tasks = []
+    box_config = run_config['box']
 
     for i, data in enumerate(data):
+        payload = {
+            'code': run_config['code'],
+            'index': i
+        }
+
+        if 'python' in box_config['runtime']:
+            # TODO: automatically choose the highest pickle version which is compatible
+            payload['zpickle64'] = base64.b64encode(zlib.compress(pickle.dumps(data, 2))).decode('utf-8')
+        else:
+            payload['json'] = data
+
         tasks.append({
             'alias': run_config['alias'],
             'verbose': run_config.get('verbose', False),
-            'payload': json.dumps({
-                'code': run_config['code'],
-                'index': i,
-                'zpickle64': base64.b64encode(zlib.compress(pickle.dumps(data, 2))).decode('utf-8')
-            })
+            'payload': json.dumps(payload)
         })
 
     if count == 1:
         return [invoke_thread(tasks[0])]
     else:
         return list(tqdm(executor.map(invoke_thread, tasks), total=count))
+
+
+def invoke(run_config, data = 0):
+    return map(run_config, [data])[0]
 
