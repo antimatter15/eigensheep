@@ -27,6 +27,7 @@ import re
 
 AWS_PROFILE = 'eigensheep'
 FUNCTION_NAME = 'EigensheepLambda'
+BUCKET_PREFIX = 'eigensheep-'
 STACK_TEMPLATE_URL = 'https://eigensheep.s3.amazonaws.com/template.yaml'
 GITHUB_URL = 'https://github.com/antimatter15/lambdu'
 
@@ -94,22 +95,40 @@ parser.add_argument('--name', type=str,
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
+def bucketID():
+    global accountID
+    return BUCKET_PREFIX + accountID
+
 
 def ensure_setup():
     global executor, accountID, known_aliases
     if executor is None:
         executor = ThreadPoolExecutor(max_workers=MAX_CONCURRENCY)
 
-    if not hasattr(threadLocal, 'lambdaClient'):
-        session = boto3.session.Session(profile_name=AWS_PROFILE)
-        threadLocal.lambdaClient = session.client('lambda')
-        threadLocal.s3Client = session.client('s3')
+    # if we have already defined the lambda client skip the rest
+    if hasattr(threadLocal, 'lambdaClient'):
+        return
 
-        if not accountID:
-            accountID = session.client('sts').get_caller_identity().get('Account')
-            aliases = threadLocal.lambdaClient.list_aliases(FunctionName=FUNCTION_NAME)['Aliases']
-            known_aliases = set([ ali['Name'] for ali in aliases ])
-            threadLocal.s3Client.head_bucket(Bucket='eigensheep-' + accountID)
+    session = boto3.session.Session(profile_name=AWS_PROFILE)
+    threadLocal.lambdaClient = session.client('lambda')
+    threadLocal.s3Client = session.client('s3')
+
+    # if we have already loaded the accountID then skip the rest
+    if accountID:
+        return
+
+    accountID = session.client('sts').get_caller_identity().get('Account')
+
+    # load all the known aliases
+    aliases = threadLocal.lambdaClient.list_aliases(FunctionName=FUNCTION_NAME)['Aliases']
+    known_aliases = set([ ali['Name'] for ali in aliases ])
+
+    # check that the appropriate bucket exists
+    threadLocal.s3Client.head_bucket(Bucket=bucketID())
+
+    # check that the lambda function exists
+    if not lambda_exists(FUNCTION_NAME, None):
+        raise Exception("No lambda exists with name '%s'."  % FUNCTION_NAME)
 
 def lambda_exists(name, alias):
     ensure_setup()
@@ -126,9 +145,6 @@ def lambda_exists(name, alias):
     known_aliases.add(alias)
     return True
 
-ipython = get_ipython()
-original_showtraceback = ipython.showtraceback
-
 def hide_traceback(exc_tuple=None, filename=None, tb_offset=None,
                    exception_only=False, running_compiled_code=False):
     
@@ -139,15 +155,13 @@ def hide_traceback(exc_tuple=None, filename=None, tb_offset=None,
         etype = type(value)
         return ipython._showtraceback(etype, value, ipython.InteractiveTB.get_exception_only(etype, value))
 
-    return original_showtraceback(
+    return ipython.original_showtraceback(
         exc_tuple=exc_tuple, 
         filename=filename, 
         tb_offset=tb_offset, 
         exception_only=exception_only, 
         running_compiled_code=running_compiled_code)
 
-
-ipython.showtraceback = hide_traceback
 
 
 class QuietError(Exception):
@@ -156,16 +170,8 @@ class QuietError(Exception):
         super().__init__(str(error))
         self.error = error
 
-setup_error = None
-try:
-    ensure_setup()
-    if not lambda_exists(FUNCTION_NAME, None):
-        raise Exception("No lambda exists with name '%s'."  % FUNCTION_NAME)
 
-except Exception as e:
-    setup_error = e
-
-if setup_error:
+def show_setup(setup_error):
     access_key = widgets.Text(
         description="Access Key: ",
         placeholder="AKIAJXSDOIF")
@@ -275,7 +281,8 @@ if setup_error:
     # raise Exception("No Eigensheep credentials found in AWS credentials profile.")
 
 
-display(HTML("""
+def show_welcome():
+    display(HTML("""
 <p>
 Prefix any cell with <code>%%eigensheep</code> to run it in AWS Lambda. <a target="_blank" href='""" + GITHUB_URL + """'>Learn more...</a>
 </p>
@@ -303,8 +310,6 @@ DATA + 42
 </pre>
 </details>
 """))
-
-# 'Prefix cells with <code>%%eigensheep [-n CONCURRENCY] [dependencies...]</code> to run in AWS Lambda. <a target="_blank" href="https://github.com/antimatter15/lambdu">Learn more...</a>'))
 
 
 @magics_class
@@ -382,8 +387,6 @@ class EigensheepMagics(Magics):
             'globals': exported_globals
         }
 
-
-
         if args.name:
             storedLambdas[args.name] = run_config
             eprint('Invoke this stored cell with `eigensheep.invoke("%s")` or `eigensheep.map("%s", [1, 2, ...])`' % (args.name, args.name))
@@ -394,18 +397,6 @@ class EigensheepMagics(Magics):
         else:
             return invoke(run_config)
 
-
-
-
-
-def install_lambda_deps(path, box_config):
-    requirements = box_config['requirements']
-    runtime = box_config['runtime']
-
-    if len(requirements) == 0:
-        return
-
-    raise Exception("not implemented")
 
 
 def make_alias_name(box_config):
@@ -613,11 +604,10 @@ def human_size(bytes, units=[' bytes','KB','MB','GB','TB', 'PB', 'EB']):
 def ensure_deps(box_config):
     alias = make_alias_name(box_config)
     if lambda_exists(FUNCTION_NAME, alias):
-        eprint("Alias '%s' already exists." % alias)
+        # eprint("Alias '%s' already exists." % alias)
         return
 
     if len(box_config['requirements']) == 0:
-        eprint("Building Lambda package...")
         package_contents = build_minimal_lambda_package()
         eprint("Uploading package to AWS (%s)..." % human_size(len(package_contents)))
         update_lambda_config(box_config)
@@ -633,7 +623,7 @@ def ensure_deps(box_config):
         payload = {
             'type': 'BUILD',
             'requirements': box_config['requirements'],
-            's3_bucket': 'eigensheep-' + accountID,
+            's3_bucket': bucketID(),
             's3_key': 'lambda_package.zip'
         }
         result = invoke_thread({
@@ -741,5 +731,22 @@ def invoke(run_config, data = 0):
 
 
 
+ipython = get_ipython()
 
+setup_error = None
+try:
+    ensure_setup()
+    
+except Exception as e:
+    setup_error = e
+
+if setup_error:
+    show_setup(setup_error)
+else:
+    show_welcome()
+
+if not hasattr(ipython, 'original_showtraceback'):
+    ipython.original_showtraceback = ipython.showtraceback
+
+ipython.showtraceback = hide_traceback
 ipython.register_magics(EigensheepMagics)
