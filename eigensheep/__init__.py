@@ -50,7 +50,7 @@ accountID = None
 known_aliases = set([])
 
 parser = argparse.ArgumentParser(
-    prog='eigensheep', 
+    prog='%%eigensheep', 
     description='Jupyter cell magic to invoke cell on AWS Lambda')
 
 parser.add_argument('deps', type=str, nargs='*',
@@ -260,7 +260,10 @@ class EigensheepMagics(Magics):
 
     @line_cell_magic
     def eigensheep(self, line, cell=None):
-        args = parser.parse_args(line.split(' '))
+        try:
+            args = parser.parse_args(line.split(' '))
+        except SystemExit:
+            return
 
         if args.clean_all:
             remove_all_aliases()

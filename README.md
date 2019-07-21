@@ -75,6 +75,40 @@ A: Eigensheep stores its access keys and configuration in the `~/.aws/config` fi
 
 A: Yes. Although it's a bit more complicated to set up. You can use any AWS access key and secret, so long as it has the ability to modify/invoke a Lambda named "EigensheepLambda" (which must be manually created). You must also create an S3 bucket named "eigensheep-YOUR_ACCOUNT_ID", where YOUR_ACCOUNT_ID is your numerical AWS account ID.
 
+## Usage
+
+```
+usage: %%eigensheep [-h] [--memory MEMORY] [--timeout TIMEOUT] [--no_install]
+                    [--clean_all] [--rm] [--reinstall] [--runtime RUNTIME]
+                    [-n N] [--verbose] [--name NAME]
+                    [deps [deps ...]]
+
+Jupyter cell magic to invoke cell on AWS Lambda
+
+positional arguments:
+  deps               dependencies to be installed via PyPI
+
+optional arguments:
+  -h, --help         show this help message and exit
+  --memory MEMORY    amount of memory in 64MB increments from 128 up to 3008
+  --timeout TIMEOUT  lambda execution timeout in seconds up to 900 (15
+                     minutes)
+  --no_install       do not install dependencies if not found
+  --clean_all        remove all deployed dependencies
+  --rm               remove a specific
+  --reinstall        uninstall and reinstall
+  --runtime RUNTIME  which runtime (python3.6, python2.7)
+  -n N               number of lambdas to invoke
+  --verbose          show additional information from lambda invocation
+  --name NAME        name to store this lambda as
+```
+
+
+`eigensheep.map("do_stuff", [1, 2, 3, 4])`
+
+
+`eigensheep.invoke("do_stuff")`
+
 
 ## Acknowledgements
 
