@@ -5,6 +5,7 @@ from IPython.core.display import display, HTML, Javascript
 from ipywidgets import widgets
 from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm_notebook as tqdm
+from IPython.core.error import UsageError
 from os.path import expanduser
 import configparser
 import hashlib
@@ -228,14 +229,21 @@ display(HTML('Prefix cells with <code>%%eigensheep [-n CONCURRENCY] [dependencie
 @magics_class
 class EigensheepMagics(Magics):
     @line_cell_magic
-    def eigensheep(self, line, cell=None):
-        if not cell:
-            eprint("Did you accidentally type %eigensheep instead of %%eigensheep?")
-            return
-        
-        # print(self.shell.user_ns)
+    def es(self, line, cell=None):
+        return self.eigensheep(line, cell)
 
+    @line_cell_magic
+    def eigensheep(self, line, cell=None):
         args = parser.parse_args(line.split(' '))
+
+        if args.clean_all:
+            remove_all_aliases()
+            return
+
+        if not cell:
+            raise UsageError("Did you accidentally type %eigensheep instead of %%eigensheep?")
+        
+
         deps = [ x for x in args.deps if x ]
 
         box_config = {
@@ -247,9 +255,6 @@ class EigensheepMagics(Magics):
 
         alias = make_alias_name(box_config)
 
-        if args.clean_all:
-            remove_all_aliases()
-            return
 
         if args.rm or args.reinstall:
             ensure_setup()
@@ -275,7 +280,7 @@ class EigensheepMagics(Magics):
             root = ast.parse(cell)
         except SyntaxError as err:
             raise QuietError(err)
-            
+
         names = set(node.id for node in ast.walk(root) if isinstance(node, ast.Name))
         exported_vars = names.intersection(self.shell.user_ns.keys())
         exported_globals = {}
