@@ -28,7 +28,7 @@ AWS_PROFILE = 'eigensheep'
 FUNCTION_NAME = 'EigensheepLambda'
 BUCKET_PREFIX = 'eigensheep-'
 STACK_TEMPLATE_URL = 'https://eigensheep.s3.amazonaws.com/template.yaml'
-GITHUB_URL = 'https://github.com/antimatter15/lambdu'
+GITHUB_URL = 'https://github.com/antimatter15/eigensheep'
 LAMBDA_TEMPLATE_PYTHON = open(os.path.join(os.path.dirname(__file__), 'template.py'), 'r').read()
 
 
@@ -130,7 +130,7 @@ def show_setup():
     region = widgets.Text(description="Region: ", placeholder="us-east-1", value="us-east-1")
 
     display(HTML("""
-    <img src="https://raw.githubusercontent.com/antimatter15/lambdu/master/images/logo.png" style="width: 300px; max-width: 100%"/>
+    <img src="https://raw.githubusercontent.com/antimatter15/eigensheep/master/images/logo.png" style="width: 300px; max-width: 100%"/>
     <b>It looks like you haven't set up Eigensheep yet</b>. 
 
     You can get started with Eigensheep with just a few clicks by following these instructions:<br/>
@@ -285,11 +285,10 @@ class EigensheepMagics(Magics):
             ensure_setup()
             try:
                 ali = threadLocal.lambdaClient.get_alias(FunctionName=FUNCTION_NAME, Name=alias)
+                if alias in known_aliases: known_aliases.remove(alias)
                 threadLocal.lambdaClient.delete_alias(FunctionName=FUNCTION_NAME, Name=ali['Name'])
                 threadLocal.lambdaClient.delete_function(FunctionName=FUNCTION_NAME, 
                     Qualifier=ali['FunctionVersion'])
-                if alias in known_aliases:
-                    known_aliases.remove(alias)
                 eprint('Deleted alias "%s".' % alias)
 
             except threadLocal.lambdaClient.exceptions.ResourceNotFoundException:
@@ -344,7 +343,7 @@ def make_alias_name(box_config):
     for req in requirements: h.update(req.encode('utf-8'))
     reqs = '_'.join(re.sub('[^\\w]', '', x) for x in requirements)[:50]
 
-    if reqs == '': reqs = 'NO-DEPS'
+    if reqs == '': reqs = 'clean'
     return ('%s-%dM-%ds-%s-' % (
         box_config['runtime'].replace('.', ''), 
         box_config['memory'], 
@@ -353,6 +352,7 @@ def make_alias_name(box_config):
 
 
 def remove_all_aliases():
+    global known_aliases
     ensure_setup()
     aliases = threadLocal.lambdaClient.list_aliases(FunctionName=FUNCTION_NAME)['Aliases']
     versions = threadLocal.lambdaClient.list_versions_by_function(
@@ -365,6 +365,7 @@ def remove_all_aliases():
         if ver['Version'] == '$LATEST': continue
         threadLocal.lambdaClient.delete_function(FunctionName=FUNCTION_NAME, Qualifier=ver['Version'])
 
+    known_aliases = set([])
     eprint("Removed %d aliases, and %d versions" % (len(aliases), len(versions) - 1))
 
 
