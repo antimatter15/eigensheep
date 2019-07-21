@@ -24,6 +24,54 @@ Once Eigensheep is set up, you can run any code on Lambda by prefixing the cell 
 
 <img src="https://raw.githubusercontent.com/antimatter15/lambdu/master/images/parallel.gif" alt="eigensheep usage" width="500"  />
 
+## FAQ
+
+*Q: Why is this library called Eigensheep?*
+
+The name comes from the classic math joke:
+
+> What do you call a baby eigensheep? 
+> 
+> A [lamb, duh](https://en.wikipedia.org/wiki/Eigenvalues_and_eigenvectors#Overview). 
+
+*Q: Does this work on Python 2 and Python 3?*
+
+A: Both Python 2 and Python 3 are supported. If the library is imported from a Python 2.x notebook, the Lambda runtime will default to "python2.6". If the library is imported from a Python 3.x notebook, the Lambda runtime defaults to "python3.6". This can be manually overridden with the "--runtime" option.
+
+*Q: Can I use this to do GPU stuff?*
+
+A: Currently the AWS Lambda execution environment does not expose access to any GPU acceleration. Eigensheep probably won't be that useful for training deep neural nets.
+
+*Q: How much does it cost to run stuff on AWS Lambda?*
+
+A: Unlike a traditional VM, you don't get charged while you're idling and not actively computing. You don't have to worry about accidentally forgetting to turn off a machine, and provisioning a VM takes only milliseconds rather than minutes. 
+
+AWS provides a pretty generous Free Tier for Lambda which does not expire after 12 months. It's 400,000 GB-seconds/month. That's 36 continuous hours of a single maxed out 3108MB Lambda job for free every month. Alternatively, it's about 20 minutes of 100 concurrent maxed out instances. After that it's about $7 for every subsequent free-tier equivalent. 
+
+*Q: Can this be used for web scraping?*
+
+A: Yes, Eigensheep can be used for web scraping. However, note that different Lambda VM instances often share the same IP address. 
+
+*Q: Can Eigensheep be used for long running computations?*
+
+A: The maximum allowed duration of any Lambda job is 15 minutes. Eigensheep works best for tasks which can be broken up into smaller chunks. 
+
+
+*Q: What are the security implications of using Eigensheep?*
+
+A: The Eigensheep CloudFormation stack creates an IAM User, Access Key, and Lambda Role with as few permissions as possible. If the access keys are compromised, the attacker only has access to a bucket containing Eigensheep-specific content, and can not use it to access any of your other AWS resources. 
+
+The IAM User can only read/write from a specific bucket earmarked for use with Eigensheep, and can only update a specific lambda function (all the different variants are stored as different versions on a single Lambda function). The Lambda function only has access to the specific bucket and the ability to write to CloudWatch logs and XRay tracing streams. 
+
+All of the access keys can be revoked and all of the resources can be removed simply by deleting the CloudFormation stack from the AWS console. 
+
+
+*Q: Where does Eigensheep store access key information?*
+
+A: Eigensheep stores its access keys and configuration in the `~/.aws/config` file under the `eigensheep` profile.
+
+
+
 ## Acknowledgements
 
 This library was written by [Kevin Kwok](https://twitter.com/antimatter15) and [Guillermo Webster](https://twitter.com/biject). It is based on Jupyter/IPython, `tqdm`, `boto3`, and countless Stackoverflow answers.
