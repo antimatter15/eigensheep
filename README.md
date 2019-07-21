@@ -1,5 +1,9 @@
 <img src="https://raw.githubusercontent.com/antimatter15/lambdu/master/images/logo.png" alt="eigensheep" width="500"/>
 
+![PyPI](https://img.shields.io/pypi/v/eigensheep.svg)
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/eigensheep.svg)
+![PyPI - License](https://img.shields.io/pypi/l/eigensheep.svg)
+
 Eigensheep lets you easily run cells in Jupyter Notebooks on AWS Lambda with massive parallelism. You can instantly provision and run your code on 1000 different tiny VMs by simply prefixing a cell with `%%eigensheep -n 1000`. 
 
 ## Getting Started
@@ -22,6 +26,6 @@ Once Eigensheep is set up, you can run any code on Lambda by prefixing the cell 
 
 ## Acknowledgements
 
-This library was written by Kevin Kwok and Guillermo Webster. It is based on Jupyter/IPython, `tqdm`, `boto3`, and countless Stackoverflow answers.
+This library was written by [Kevin Kwok](https://twitter.com/antimatter15) and [Guillermo Webster](https://twitter.com/biject). It is based on Jupyter/IPython, `tqdm`, `boto3`, and countless Stackoverflow answers.
 
 If you're interested in this project, you should also check out [PyWren](http://pywren.io/) by Eric Jonas, and [ExCamera](https://www.usenix.org/system/files/conference/nsdi17/nsdi17-fouladi.pdf) from Sadjad Fouladi, et al. 
