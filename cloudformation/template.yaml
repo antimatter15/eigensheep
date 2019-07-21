@@ -1,0 +1,163 @@
+AWSTemplateFormatVersion: 2010-09-09
+Metadata:
+  'AWS::CloudFormation::Designer':
+    3f1f9cbf-4566-4630-a370-91c494682a4c:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: -70
+        'y': 70
+      z: 1
+      embeds: []
+    ea98706f-8d63-4dcd-92e5-c49fb9093f32:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: -70
+        'y': 180
+      z: 1
+      embeds: []
+    65169091-6648-4c36-be5b-b4933c12a43a:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 30
+        'y': 140
+      z: 1
+      embeds: []
+    066da546-2662-408f-b39b-59a8ef69e5cd:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 110
+        'y': -40
+      z: 1
+      embeds: []
+    c3fa7e6c-fa50-4819-bda8-a058cef1faa3:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 110
+        'y': 80
+      z: 1
+      embeds: []
+Resources:
+  EigensheepUser:
+    Type: 'AWS::IAM::User'
+    Properties:
+      Policies:
+        - PolicyName: EigensheepUserPolicy
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'lambda:*'
+                Resource: 
+                  - !GetAtt 
+                    - EigensheepLambda
+                    - Arn
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:PutObject'
+                Resource:
+                  - !Join 
+                    - ''
+                    - - !GetAtt
+                        - EigensheepBucket
+                        - Arn
+                      - '/*'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 3f1f9cbf-4566-4630-a370-91c494682a4c
+  EigensheepAccessKey:
+    Type: 'AWS::IAM::AccessKey'
+    Properties:
+      UserName: !Ref EigensheepUser
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: ea98706f-8d63-4dcd-92e5-c49fb9093f32
+  EigensheepBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Join 
+        - '-'
+        - - eigensheep
+          - !Ref 'AWS::AccountId'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 65169091-6648-4c36-be5b-b4933c12a43a
+  EigensheepLambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      RoleName: EigensheepLambdaRole
+      Policies:
+        - PolicyName: EigensheepLambdaRolePolicy
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:*'
+                Resource: 'arn:aws:logs:*:*:*'
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:PutObject'
+                Resource:
+                  - !Join 
+                    - ''
+                    - - !GetAtt
+                        - EigensheepBucket
+                        - Arn
+                      - '/*'
+              - Effect: Allow
+                Action:
+                  - 'xray:PutTraceSegments'
+                  - 'xray:PutTelemetryRecords'
+                  - 'xray:GetSamplingRules'
+                  - 'xray:GetSamplingTargets'
+                  - 'xray:GetSamplingStatisticSummaries'
+                Resource:
+                  - '*'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 066da546-2662-408f-b39b-59a8ef69e5cd
+  EigensheepLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Role: !GetAtt 
+        - EigensheepLambdaRole
+        - Arn
+      Code:
+        ZipFile: print("hello eigensheep")
+      Runtime: python3.6
+      Handler: index
+      FunctionName: EigensheepLambda
+      Description: 'Eigensheep Parallel Lambda Worker'
+      TracingConfig:
+        Mode: Active
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: c3fa7e6c-fa50-4819-bda8-a058cef1faa3
+Outputs:
+  AWSAccessKeyId:
+    Value: !Ref EigensheepAccessKey
+  AWSSecretAccessKey:
+    Value: !GetAtt 
+      - EigensheepAccessKey
+      - SecretAccessKey
+  Region:
+    Value: !Ref 'AWS::Region'
