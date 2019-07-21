@@ -26,6 +26,8 @@ import ast
 AWS_PROFILE = 'eigensheep'
 FUNCTION_NAME = 'EigensheepLambda'
 STACK_TEMPLATE_URL = 'https://eigensheep.s3.amazonaws.com/template.yaml'
+GITHUB_URL = 'https://github.com/antimatter15/lambdu'
+
 
 DEFAULT_MEMORY = 512
 DEFAULT_TIMEOUT = 60
@@ -270,17 +272,15 @@ if setup_error:
     raise QuietError(setup_error)
     # raise Exception("No Eigensheep credentials found in AWS credentials profile.")
 
-# display(HTML('Prefix cells with <code>%%eigensheep [-n CONCURRENCY] [dependencies...]</code> to run in AWS Lambda. <a target="_blank" href="https://github.com/antimatter15/lambdu">Learn more...</a>'))
-
 
 display(HTML("""
 <p>
-Prefix cells with <code>%%eigensheep</code> to run in AWS Lambda. <a target="_blank" href="https://github.com/antimatter15/lambdu">Learn more...</a>
+Prefix any cell with <code>%%eigensheep</code> to run it in AWS Lambda. <a target="_blank" href='""" + GITHUB_URL + """'>Learn more...</a>
 </p>
-
+<br />
 <details>
-<summary>Example: Importing `requests` package from Pip</summary>
-<pre>%%eigensheep requests
+<summary>Example: Use `requests` package via Pip</summary>
+<pre style="padding-left: 20px">%%eigensheep requests
 import requests
 requests.get("https://www.google.com").text
 </pre>
@@ -288,14 +288,14 @@ requests.get("https://www.google.com").text
 
 <details>
 <summary>Example: Run cell 100x concurrently</summary>
-<pre>%%eigensheep -n 100
+<pre style="padding-left: 20px">%%eigensheep -n 100
 INDEX + 1 # returns [1, 2, 3, ..., 99, 100]
 </pre>
 </details>
 
 <details>
 <summary>Example: Mapping through an array</summary>
-<pre>%%eigensheep --name do_stuff
+<pre style="padding-left: 20px">%%eigensheep --name do_stuff
 DATA + 42
 # In a different cell, call `eigensheep.map("do_stuff", [1, 2, 3, 4])`
 </pre>
