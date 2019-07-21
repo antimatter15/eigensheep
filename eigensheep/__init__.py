@@ -1,10 +1,10 @@
 from __future__ import print_function
 from IPython.core.magic import Magics, magics_class, line_cell_magic
 from IPython.core.display import display, HTML, Javascript
-from ipywidgets import widgets
 from concurrent.futures import ThreadPoolExecutor
-from tqdm import tqdm_notebook as tqdm
 from IPython.core.error import UsageError
+from tqdm import tqdm_notebook as tqdm
+from ipywidgets import widgets
 from os.path import expanduser
 from types import ModuleType
 import configparser
@@ -48,7 +48,6 @@ storedLambdas = {}
 accountID = None
 known_aliases = set([])
 
-
 parser = argparse.ArgumentParser(
     prog='eigensheep', 
     description='Jupyter cell magic to invoke cell on AWS Lambda')
@@ -74,7 +73,6 @@ parser.add_argument('--rm', action='store_true',
 parser.add_argument('--reinstall', action='store_true',
                     help='uninstall and reinstall')
 
-
 parser.add_argument('--runtime', type=str, default='python2.7' if sys.version_info[0] == 2 else 'python3.6',
                     help='which runtime (python3.6, python2.7)')
 
@@ -89,10 +87,6 @@ parser.add_argument('--name', type=str,
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
-
-def bucketID():
-    global accountID
-    return BUCKET_PREFIX + accountID
 
 
 def ensure_setup():
@@ -119,7 +113,7 @@ def ensure_setup():
     known_aliases = set([ ali['Name'] for ali in aliases ])
 
     # check that the appropriate bucket exists
-    threadLocal.s3Client.head_bucket(Bucket=bucketID())
+    threadLocal.s3Client.head_bucket(Bucket=BUCKET_PREFIX + accountID)
 
     # check that the lambda function exists
     if not lambda_exists(FUNCTION_NAME, None):
@@ -140,32 +134,9 @@ def lambda_exists(name, alias):
     known_aliases.add(alias)
     return True
 
-def hide_traceback(exc_tuple=None, filename=None, tb_offset=None,
-                   exception_only=False, running_compiled_code=False):
-    
-    etype, value, tb = sys.exc_info()
-
-    if issubclass(etype, QuietError):
-        value = value.error
-        etype = type(value)
-        return ipython._showtraceback(etype, value, ipython.InteractiveTB.get_exception_only(etype, value))
-
-    return ipython.original_showtraceback(
-        exc_tuple=exc_tuple, 
-        filename=filename, 
-        tb_offset=tb_offset, 
-        exception_only=exception_only, 
-        running_compiled_code=running_compiled_code)
 
 
-
-class QuietError(Exception):
-    def __init__(self, error):
-        super().__init__(str(error))
-        self.error = error
-
-
-def show_setup(setup_error):
+def show_setup():
     access_key = widgets.Text(
         description="Access Key: ",
         placeholder="AKIAJXSDOIF")
@@ -270,9 +241,6 @@ def show_setup(setup_error):
     button.on_click(handle_submit)
     access_key.on_submit(handle_submit)
     secret_key.on_submit(handle_submit)
-
-    raise QuietError(setup_error)
-    # raise Exception("No Eigensheep credentials found in AWS credentials profile.")
 
 
 def show_welcome():
@@ -536,22 +504,6 @@ def my_exec(script, globals=None, locals=None):
 """
 
 
-def update_lambda_config(box_config):
-    ensure_setup()
-    runtime = box_config['runtime']
-    memory = box_config['memory']
-    timeout = box_config['timeout']
-    handler = 'main.lambda_handler'
-
-    threadLocal.lambdaClient.update_function_configuration(
-        FunctionName=FUNCTION_NAME,
-        Timeout=timeout,
-        Runtime=runtime,
-        MemorySize=memory,
-        Handler=handler,
-    )
-
-
 
 def remove_all_aliases():
     ensure_setup()
@@ -590,9 +542,21 @@ def build_minimal_lambda_package():
     zipf.close()
     return pseudofile.getvalue()
 
-def human_size(bytes, units=[' bytes','KB','MB','GB','TB', 'PB', 'EB']):
-    """ Returns a human readable string reprentation of bytes"""
-    return str(bytes) + units[0] if bytes < 1024 else human_size(bytes>>10, units[1:])
+
+def update_lambda_config(box_config):
+    ensure_setup()
+    runtime = box_config['runtime']
+    memory = box_config['memory']
+    timeout = box_config['timeout']
+    handler = 'main.lambda_handler'
+
+    threadLocal.lambdaClient.update_function_configuration(
+        FunctionName=FUNCTION_NAME,
+        Timeout=timeout,
+        Runtime=runtime,
+        MemorySize=memory,
+        Handler=handler,
+    )
 
 
 def ensure_deps(box_config):
@@ -602,7 +566,6 @@ def ensure_deps(box_config):
 
     if len(box_config['requirements']) == 0:
         package_contents = build_minimal_lambda_package()
-        eprint("Uploading package to AWS (%s)..." % human_size(len(package_contents)))
         update_lambda_config(box_config)
         result = threadLocal.lambdaClient.update_function_code(
             FunctionName=FUNCTION_NAME,
@@ -617,7 +580,7 @@ def ensure_deps(box_config):
         payload = {
             'type': 'BUILD',
             'requirements': box_config['requirements'],
-            's3_bucket': bucketID(),
+            's3_bucket': BUCKET_PREFIX + accountID,
             's3_key': 'lambda_package.zip'
         }
         result = invoke_thread({
@@ -724,6 +687,39 @@ def invoke(run_config, data = 0):
     return map(run_config, [data])[0]
 
 
+# QuietError and hide_traceback are part of a mechanism that hides
+# tracebacks for certain exceptions where the stack trace only serves
+# to confuse and startle. Normal exceptions pass through and are given
+# tracebacks as usual, but QuietErrors only print the message. This
+# is useful for syntax errors and configuration errors. 
+
+# Based on: https://stackoverflow.com/a/46224586
+
+class QuietError(Exception):
+    def __init__(self, error):
+        super().__init__(str(error))
+        self.error = error
+
+def hide_traceback(exc_tuple=None, filename=None, tb_offset=None,
+                   exception_only=False, running_compiled_code=False):
+    
+    etype, value, tb = sys.exc_info()
+
+    if issubclass(etype, QuietError):
+        value = value.error
+        etype = type(value)
+        return ipython._showtraceback(etype, value, ipython.InteractiveTB.get_exception_only(etype, value))
+
+    return ipython.original_showtraceback(
+        exc_tuple=exc_tuple, 
+        filename=filename, 
+        tb_offset=tb_offset, 
+        exception_only=exception_only, 
+        running_compiled_code=running_compiled_code)
+
+
+
+
 try:
     ipython = get_ipython()
 except NameError:
@@ -731,18 +727,25 @@ except NameError:
 
 setup_error = None
 try:
+    # ensure_setup() throws errors if anything is amiss
+    # for instance, if there is no AWS profile named "eigensheep"
+    # or if there's a missing bucket, or a missing lambda function,
+    # or anything smells like farts
     ensure_setup()
-    
 except Exception as e:
     setup_error = e
 
+# This traceback code needs to happen before
+# show_setup() where we throw an exception. 
+# because we don't want an ugly python traceback.
+if not hasattr(ipython, 'original_showtraceback'):
+    ipython.original_showtraceback = ipython.showtraceback
+ipython.showtraceback = hide_traceback
+
 if setup_error:
-    show_setup(setup_error)
+    show_setup()
+    raise QuietError(setup_error)
 else:
     show_welcome()
 
-if not hasattr(ipython, 'original_showtraceback'):
-    ipython.original_showtraceback = ipython.showtraceback
-
-ipython.showtraceback = hide_traceback
 ipython.register_magics(EigensheepMagics)
