@@ -178,9 +178,11 @@ if setup_error:
     # display cloudformation button
     display(HTML("""
     <img src="https://raw.githubusercontent.com/antimatter15/lambdu/master/logo.png" style="width: 300px; max-width: 100%"/>
-    It looks like you haven't set up eigensheep yet. You can get started with eigensheep by following these instructions:<br/>
+    <b>It looks like you haven't set up Eigensheep yet</b>. 
+
+    You can get started with Eigensheep with just a few clicks by following these instructions:<br/>
     <ol>
-        <li>Launch eigensheep in the AWS Cloudformation Create Stack wizard with this button: <br/><a target="_blank" href="https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=eigensheep&amp;templateURL=" "" + STACK_TEMPLATE_URL + "" "">
+        <li>Automatically generate Eigensheep resources using AWS CloudFormation with this button: <br/><a target="_blank" href="https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=eigensheep&amp;templateURL=""" + STACK_TEMPLATE_URL + """">
             <svg width="144" height="27" viewBox="0 0 144 27" xmlns="http://www.w3.org/2000/svg">
                 <title>Launch Stack</title>
                 <defs>
@@ -202,13 +204,27 @@ if setup_error:
                 </g>
             </svg>
         </a>
+            <br />
+            <i style="color: #666">This stack creates an S3 bucket, Lambda function, execution role for the Lambda, and an IAM user with access limited to the S3 bucket and Lambda function. Eigensheep Lambdas have no access to any of your AWS resources besides its designated S3 bucket. You can verify the behavior of the stack by clicking on "View in Designer" at the linked wizard.</i>
         </li>
-        <li>(Optional) If you're curious, take a look at the eigensheep stack by clicking 'View in Designer'.</li>
-        <li>Click through the prompts accepting the default values for the eigensheep stack.
-            Make sure to check the box acknowledging that the eigensheep stack will create a limited permission user and lambda role.</li>
-        <li>You should now be on the cloudformation stack details screen for your new eigensheep stack. Click the 'outputs' tab.</li>
-        <li>The outputs will be empty for a minute or two while your eigesnsheep stack is initializing. Keep pressing the refresh button to the right of the 'Outputs (0)' message until the outputs appear.</li>
-        <li>Paste the outputs into the form below to finish setting up:</li>
+        <li>Click through the prompts accepting the default values for the Eigensheep stack.
+            <br />
+            <i style="color: #666">
+            Make sure to check the box acknowledging that the Eigensheep stack will create a limited permission user and lambda role.
+            </i></li>
+        <li>You should now be on the CloudFormation stack details screen for your new Eigensheep stack. Click the 'Outputs' tab. Press the refresh button to the right of the 'Outputs (0)' message every 30 seconds until the outputs appear.
+            <br />
+            <i style="color: #666">
+                This process generally takes 1-2 minutes to complete. You could use this time to take a break from your computer and stretch. 
+            </i>
+        </li>
+        <li>
+            Copy the outputs into the form below to finish setting up:
+            <br />
+            <i style="color: #666">
+            This will save your Eigensheep credentials to a profile named "eigensheep" in your ~/.aws/config file.
+            </i>
+        </li>
     </ol>
 """))
 
@@ -254,7 +270,40 @@ if setup_error:
     raise QuietError(setup_error)
     # raise Exception("No Eigensheep credentials found in AWS credentials profile.")
 
-display(HTML('Prefix cells with <code>%%eigensheep [-n CONCURRENCY] [dependencies...]</code> to run in AWS Lambda. <a target="_blank" href="https://github.com/antimatter15/lambdu">Learn more...</a>'))
+# display(HTML('Prefix cells with <code>%%eigensheep [-n CONCURRENCY] [dependencies...]</code> to run in AWS Lambda. <a target="_blank" href="https://github.com/antimatter15/lambdu">Learn more...</a>'))
+
+
+display(HTML("""
+<p>
+Prefix cells with <code>%%eigensheep</code> to run in AWS Lambda. <a target="_blank" href="https://github.com/antimatter15/lambdu">Learn more...</a>
+</p>
+
+<details>
+<summary>Example: Importing `requests` package from Pip</summary>
+<pre>%%eigensheep requests
+import requests
+requests.get("https://www.google.com").text
+</pre>
+</details>
+
+<details>
+<summary>Example: Run cell 100x concurrently</summary>
+<pre>%%eigensheep -n 100
+INDEX + 1 # returns [1, 2, 3, ..., 99, 100]
+</pre>
+</details>
+
+<details>
+<summary>Example: Mapping through an array</summary>
+<pre>%%eigensheep --name do_stuff
+DATA + 42
+# In a different cell, call `eigensheep.map("do_stuff", [1, 2, 3, 4])`
+</pre>
+</details>
+"""))
+
+# 'Prefix cells with <code>%%eigensheep [-n CONCURRENCY] [dependencies...]</code> to run in AWS Lambda. <a target="_blank" href="https://github.com/antimatter15/lambdu">Learn more...</a>'))
+
 
 @magics_class
 class EigensheepMagics(Magics):
