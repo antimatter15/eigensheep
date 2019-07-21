@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm_notebook as tqdm
 from IPython.core.error import UsageError
 from os.path import expanduser
+from types import ModuleType
 import configparser
 import hashlib
 import threading
@@ -22,6 +23,7 @@ import time
 import pickle
 import json
 import ast
+import re
 
 AWS_PROFILE = 'eigensheep'
 FUNCTION_NAME = 'EigensheepLambda'
@@ -653,6 +655,9 @@ def ensure_deps(box_config):
     create_or_update_alias(result['Version'], alias)
     eprint("Successfully deployed as '%s'." % alias)
 
+def user_variable(name):
+    # TODO: this always returns the re module
+    return re
 
 def invoke_thread(info):
     ensure_setup()
@@ -678,6 +683,15 @@ def invoke_thread(info):
             return data['json']
         elif 'pretty' in data:
             return data['pretty']
+        elif 'errorType' in data and data['errorType'] == 'NameError' and data['errorMessage']:
+            nameMatch = re.search("(?:name ')([^']+)(?:' is not defined)", data['errorMessage'])
+            print(nameMatch)
+            if not nameMatch:
+                return data
+            name = nameMatch.group(1)
+            if isinstance(user_variable(name), ModuleType):
+                return "To use the module '" + name + "' with eigensheep you need to import it in this cell."
+            return data
         else:
             return data
 
