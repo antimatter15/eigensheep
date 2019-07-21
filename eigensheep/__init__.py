@@ -680,15 +680,19 @@ def invoke_thread(info):
             return data['json']
         elif 'pretty' in data:
             return data['pretty']
-        elif 'errorType' in data and data['errorType'] == 'NameError' and data['errorMessage']:
-            nameMatch = re.search("(?:name ')([^']+)(?:' is not defined)", data['errorMessage'])
-            if not nameMatch:
-                return data
-            name = nameMatch.group(1)
-            if isinstance(ipython.user_ns.get(name, None), ModuleType):
-                eprint("To use the module '" + name + "' with eigensheep you need to import it in this cell.")
-            return data
         else:
+            if 'errorType' in data and data['errorMessage']:
+                if data['errorType'] == 'NameError':
+                    nameMatch = re.search("(?:name ')([^']+)(?:' is not defined)", data['errorMessage'])
+                    if nameMatch:
+                        name = nameMatch.group(1)
+                        if isinstance(ipython.user_ns.get(name, None), ModuleType):
+                            eprint("To use the module '" + name + "' with eigensheep you need to import it in this cell.")
+                elif data['errorType'] == 'ModuleNotFoundError':
+                    nameMatch = re.search("(?:No module named ')([^']+)(?:')", data['errorMessage'])
+                    if nameMatch:
+                        name = nameMatch.group(1)
+                        eprint("AWS Lambda doesn't include '" + name + "' by default. To use it, add it to your eigensheep call above, e.g. '%%eigensheep " + name + "'.")
             return data
 
 def map(run_config, data = [0]):
