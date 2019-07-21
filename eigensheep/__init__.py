@@ -300,7 +300,7 @@ class EigensheepMagics(Magics):
 
         if args.name:
             storedLambdas[args.name] = run_config
-            eprint('Invoke this stored cell with `lambdu.invoke("%s")` or `lambdu.map("%s", [1, 2, ...])`' % (args.name, args.name))
+            eprint('Invoke this stored cell with `eigensheep.invoke("%s")` or `eigensheep.map("%s", [1, 2, ...])`' % (args.name, args.name))
             return None
 
         if args.n > 1:
@@ -350,7 +350,7 @@ def pickle_serialize(out):
         data = base64.b64encode(zlib.compress(pickle.dumps(out, 2))).decode('utf-8')
         if len(data) > 5 * 1024 * 1024:
             # Don't use print() because this code needs to run on both py2k and py3k
-            sys.stdout.write('WARN/LAMBDU: Pickle serialization exceeds 5MB, not returning result.\\n')
+            sys.stdout.write('WARN: Pickle serialization exceeds 5MB, not returning result.\\n')
             return (False, None)
         return (True, data)
     except Exception:
