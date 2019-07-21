@@ -536,7 +536,6 @@ def ensure_deps(box_config):
 
 def invoke_thread(info):
     ensure_setup()
-    # start = time.time()
     result = threadLocal.lambdaClient.invoke(
         FunctionName=FUNCTION_NAME,
         InvocationType='RequestResponse',
@@ -544,8 +543,8 @@ def invoke_thread(info):
         Payload=info['payload'],
         Qualifier=info['alias']
     )
-    # eprint("Elapsed:", time.time() - start)
 
+    known_aliases.add(info['alias'])
     data = json.load(result['Payload'])
     for line in base64.b64decode(result['LogResult']).decode('utf-8').split('\n')[:-1]:
         is_aws = line.startswith('START ') or line.startswith('END ') or line.startswith('REPORT ') or line.startswith('XRAY ')
