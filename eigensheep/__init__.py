@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from IPython.core.magic import Magics, magics_class, line_cell_magic
 from IPython.core.display import display, HTML, Javascript
 from ipywidgets import widgets
@@ -51,10 +49,6 @@ accountID = None
 known_aliases = set([])
 
 
-default_lambda_runtime = 'python3.6'
-if sys.version_info[0] == 2:
-    default_lambda_runtime = 'python2.7'
-
 parser = argparse.ArgumentParser(
     prog='eigensheep', 
     description='Jupyter cell magic to invoke cell on AWS Lambda')
@@ -80,7 +74,7 @@ parser.add_argument('--rm', action='store_true',
 parser.add_argument('--reinstall', action='store_true',
                     help='uninstall and reinstall')
 
-parser.add_argument('--runtime', type=str, default=default_lambda_runtime,
+parser.add_argument('--runtime', type=str, default='python3.6',
                     help='which runtime (python3.6, python2.7)')
 
 parser.add_argument('-n', type=int, default=1,
