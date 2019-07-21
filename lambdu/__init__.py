@@ -27,22 +27,22 @@ storedLambdas = {}
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
-if not distutils.spawn.find_executable("docker"):
-    # unable to find executable for docker
-    eprint("Warning: Could not find `docker` executable. Lambdu will not be able to execute cells with pip dependencies.")
-else:
+# if not distutils.spawn.find_executable("docker"):
+#     # unable to find executable for docker
+#     eprint("Warning: Could not find `docker` executable. Lambdu will not be able to execute cells with pip dependencies.")
+# else:
 
-    child = subprocess.Popen(['docker', 'ps'], stderr=subprocess.PIPE)
-    streamdata = child.communicate()[1]
-    # if there was some error in running `docker ps`
-    if child.returncode != 0:
-        if 'permission denied' in str(streamdata):
-            eprint("Warning: Permission denied to invoke `docker`. " + \
-                "Consider following this tutorial to allow docker to be managed by non-root users: " + \
-                "https://docs.docker.com/install/linux/linux-postinstall/#manage-docker-as-a-non-root-user\n")
-        else:
-            eprint("Warning: An error occurred when running `docker ps`. Lambdu will not be able to execute cells with pip dependencies.\n")
-        eprint(streamdata.decode('utf-8').strip())
+#     child = subprocess.Popen(['docker', 'ps'], stderr=subprocess.PIPE)
+#     streamdata = child.communicate()[1]
+#     # if there was some error in running `docker ps`
+#     if child.returncode != 0:
+#         if 'permission denied' in str(streamdata):
+#             eprint("Warning: Permission denied to invoke `docker`. " + \
+#                 "Consider following this tutorial to allow docker to be managed by non-root users: " + \
+#                 "https://docs.docker.com/install/linux/linux-postinstall/#manage-docker-as-a-non-root-user\n")
+#         else:
+#             eprint("Warning: An error occurred when running `docker ps`. Lambdu will not be able to execute cells with pip dependencies.\n")
+#         eprint(streamdata.decode('utf-8').strip())
 
 display(HTML('Prefix cells with <code>%%lambdu [-n CONCURRENCY] [dependencies...]</code> to run in AWS Lambda. <a target="_blank" href="https://github.com/antimatter15/lambdu">Learn more...</a>'))
 
