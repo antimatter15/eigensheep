@@ -2,7 +2,7 @@
 
 ## Getting Started
 
-Open up your Terminal and install `eigensheep` with Pip
+Open up your Terminal and install `eigensheep` with `pip`
 
     pip3 install eigensheep
 

@@ -724,8 +724,10 @@ def invoke(run_config, data = 0):
     return map(run_config, [data])[0]
 
 
-
-ipython = get_ipython()
+try:
+    ipython = get_ipython()
+except NameError:
+    raise Exception("Eigensheep can only be used within a Jupyter notebook.")
 
 setup_error = None
 try:
