@@ -5,6 +5,7 @@ from ipywidgets import widgets
 # from IPython.core.magic import register_cell_magic
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from tqdm import tqdm_notebook as tqdm
 from os.path import expanduser
 import configparser
 import hashlib
@@ -173,18 +174,12 @@ if setup_error:
         except FileExistsError:
             pass
 
-        config.read(expanduser("~/.aws/credentials"))
-        config['eigensheep'] = {
-            'aws_access_key_id': access_key.value,
-            'aws_secret_access_key': secret_key.value
-        }
-        with open(expanduser("~/.aws/credentials"), 'w') as configfile:
-            config.write(configfile)
-
         config = configparser.ConfigParser()
         config.read(expanduser("~/.aws/config"))
         config['profile eigensheep'] = {
             'region': region.value,
+            'aws_access_key_id': access_key.value,
+            'aws_secret_access_key': secret_key.value
         }
         with open(expanduser("~/.aws/config"), 'w') as configfile:
             config.write(configfile)
