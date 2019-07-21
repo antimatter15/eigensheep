@@ -1,9 +1,8 @@
 from __future__ import print_function
 
+from IPython.core.magic import Magics, magics_class, line_cell_magic
 from IPython.core.display import display, HTML, Javascript
 from ipywidgets import widgets
-# from IPython.core.magic import register_cell_magic
-import sys
 from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm_notebook as tqdm
 from os.path import expanduser
@@ -14,25 +13,22 @@ import boto3
 import argparse
 import os
 import io
+import sys
 import zipfile
 import base64
 import zlib
 import time
 import pickle
 import json
-from IPython.core.magic import Magics, magics_class, line_cell_magic
 import ast
-
-
 
 AWS_PROFILE = 'eigensheep'
 FUNCTION_NAME = 'EigensheepLambda'
 STACK_TEMPLATE_URL = 'https://eigensheep.s3.amazonaws.com/template.yaml'
 
 DEFAULT_MEMORY = 512
-DEFAULT_TIMEOUT = 30
+DEFAULT_TIMEOUT = 60
 MAX_CONCURRENCY = 1000
-
 
 
 BOOTSTRAP_CONFIG = {
@@ -41,8 +37,6 @@ BOOTSTRAP_CONFIG = {
     'timeout': 300,
     'runtime': 'python3.6'
 }
-
-
 
 threadLocal = threading.local()
 executor = None
@@ -127,6 +121,35 @@ def lambda_exists(name, alias):
     known_aliases.add(alias)
     return True
 
+ipython = get_ipython()
+original_showtraceback = ipython.showtraceback
+
+def hide_traceback(exc_tuple=None, filename=None, tb_offset=None,
+                   exception_only=False, running_compiled_code=False):
+    
+    etype, value, tb = sys.exc_info()
+
+    if issubclass(etype, QuietError):
+        value = value.error
+        etype = type(value)
+        return ipython._showtraceback(etype, value, ipython.InteractiveTB.get_exception_only(etype, value))
+
+    return original_showtraceback(
+        exc_tuple=exc_tuple, 
+        filename=filename, 
+        tb_offset=tb_offset, 
+        exception_only=exception_only, 
+        running_compiled_code=running_compiled_code)
+
+
+ipython.showtraceback = hide_traceback
+
+
+class QuietError(Exception):
+    def __init__(self, error):
+        # super(Exception).__init__(str(error))
+        super().__init__(str(error))
+        self.error = error
 
 setup_error = None
 try:
@@ -134,9 +157,7 @@ try:
     if not lambda_exists(FUNCTION_NAME, None):
         raise Exception("No lambda exists with name '%s'."  % FUNCTION_NAME)
 
-
 except Exception as e:
-    eprint(e)
     setup_error = e
 
 if setup_error:
@@ -199,13 +220,13 @@ if setup_error:
     access_key.on_submit(handle_submit)
     secret_key.on_submit(handle_submit)
 
-    raise Exception("No Eigensheep credentials found in AWS credentials profile.")
+    raise QuietError(setup_error)
+    # raise Exception("No Eigensheep credentials found in AWS credentials profile.")
 
 display(HTML('Prefix cells with <code>%%eigensheep [-n CONCURRENCY] [dependencies...]</code> to run in AWS Lambda. <a target="_blank" href="https://github.com/antimatter15/lambdu">Learn more...</a>'))
 
 @magics_class
 class EigensheepMagics(Magics):
-
     @line_cell_magic
     def eigensheep(self, line, cell=None):
         if not cell:
@@ -250,7 +271,11 @@ class EigensheepMagics(Magics):
         if not args.no_install and alias not in known_aliases and not lambda_exists(FUNCTION_NAME, alias):
             ensure_deps(box_config)
 
-        root = ast.parse(cell)
+        try:
+            root = ast.parse(cell)
+        except SyntaxError as err:
+            raise QuietError(err)
+            
         names = set(node.id for node in ast.walk(root) if isinstance(node, ast.Name))
         exported_vars = names.intersection(self.shell.user_ns.keys())
         exported_globals = {}
@@ -280,8 +305,6 @@ class EigensheepMagics(Magics):
 
 
 
-
-get_ipython().register_magics(EigensheepMagics)
 
 
 def install_lambda_deps(path, box_config):
@@ -610,3 +633,7 @@ def map(run_config, data = [0]):
 def invoke(run_config, data = 0):
     return map(run_config, [data])[0]
 
+
+
+
+ipython.register_magics(EigensheepMagics)
