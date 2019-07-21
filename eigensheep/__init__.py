@@ -179,7 +179,7 @@ if setup_error:
     <img src="https://raw.githubusercontent.com/antimatter15/lambdu/master/logo.png" style="width: 300px; max-width: 100%"/>
     It looks like you haven't set up eigensheep yet. You can get started with eigensheep by following these instructions:<br/>
     <ol>
-        <li>Launch the eigensheep AWS Cloudformation Stack with this button: <br/><a target="_blank" href="https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=eigensheep&amp;templateURL=" "" + STACK_TEMPLATE_URL + "" "">
+        <li>Launch eigensheep in the AWS Cloudformation Create Stack wizard with this button: <br/><a target="_blank" href="https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=eigensheep&amp;templateURL=" "" + STACK_TEMPLATE_URL + "" "">
             <svg width="144" height="27" viewBox="0 0 144 27" xmlns="http://www.w3.org/2000/svg">
                 <title>Launch Stack</title>
                 <defs>
@@ -202,13 +202,14 @@ if setup_error:
             </svg>
         </a>
         </li>
-        <li>If you are not logged in, log in to your AWS account.</li>
-        <li>Click through the prompts accepting all default values for the eigensheep stack.<br/>
-            You will have to check a box acknowledging that the eigensheep stack will create an eigensheep user and lambda role.</li>
-        <li>After you've created the stack, you should be redirected to a cloudformation screen with the eigensheep stack details. Click the 'outputs' tab.</li>
+        <li>(Optional) If you're curious, take a look at the eigensheep stack by clicking 'View in Designer'.</li>
+        <li>Click through the prompts accepting the default values for the eigensheep stack.
+            Make sure to check the box acknowledging that the eigensheep stack will create a limited permission user and lambda role.</li>
+        <li>You should now be on the cloudformation stack details screen for your new eigensheep stack. Click the 'outputs' tab.</li>
         <li>The outputs will be empty for a minute or two while your eigesnsheep stack is initializing. Keep pressing the refresh button to the right of the 'Outputs (0)' message until the outputs appear.</li>
-        <li>Paste the values into the form below:</li>
-    </ol>    """))
+        <li>Paste the outputs into the form below to finish setting up:</li>
+    </ol>
+"""))
 
     button = widgets.Button(description="Submit")
 
