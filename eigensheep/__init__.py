@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from IPython.core.display import display, HTML, Javascript
 from ipywidgets import widgets
-from IPython.core.magic import register_cell_magic
+# from IPython.core.magic import register_cell_magic
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from os.path import expanduser
@@ -19,6 +19,10 @@ import zlib
 import time
 import pickle
 import json
+from IPython.core.magic import Magics, magics_class, line_cell_magic
+import ast
+
+
 
 AWS_PROFILE = 'eigensheep'
 FUNCTION_NAME = 'EigensheepLambda'
@@ -46,6 +50,46 @@ accountID = None
 known_aliases = set([])
 
 
+default_lambda_runtime = 'python3.6'
+if sys.version_info[0] == 2:
+    default_lambda_runtime = 'python2.7'
+
+parser = argparse.ArgumentParser(
+    prog='eigensheep', 
+    description='Jupyter cell magic to invoke cell on AWS Lambda')
+
+parser.add_argument('deps', type=str, nargs='*',
+                    help='dependencies to be installed via PyPI')
+
+parser.add_argument('--memory', default=DEFAULT_MEMORY, type=int,
+                    help='amount of memory in 64MB increments from 128 up to 3008')
+
+parser.add_argument('--timeout', default=DEFAULT_TIMEOUT, type=int,
+                    help='lambda execution timeout in seconds up to 900 (15 minutes)')
+
+parser.add_argument('--no_install', action='store_true',
+                    help='do not install dependencies if not found')
+
+parser.add_argument('--clean_all', action='store_true',
+                    help='remove all deployed dependencies')
+
+parser.add_argument('--rm', action='store_true',
+                    help='remove a specific')
+
+parser.add_argument('--reinstall', action='store_true',
+                    help='uninstall and reinstall')
+
+parser.add_argument('--runtime', type=str, default=default_lambda_runtime,
+                    help='which runtime (python3.6, python2.7)')
+
+parser.add_argument('-n', type=int, default=1,
+                    help='number of lambdas to invoke')
+
+parser.add_argument('--verbose', action='store_true',
+                    help='show additional information from lambda invocation')
+
+parser.add_argument('--name', type=str,
+                    help='name to store this lambda as')
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -146,13 +190,11 @@ if setup_error:
             config.write(configfile)
 
         # based on https://stackoverflow.com/a/39639111
+        # re-execute the cell
         display(Javascript("""
             var output_area = this;
-            // find my cell element
             var cell_element = output_area.element.parents('.cell');
-            // which cell is it?
             var cell_idx = Jupyter.notebook.get_cell_elements().index(cell_element);
-            // get the cell object
             var cell = Jupyter.notebook.get_cell(cell_idx);
 
             cell.execute()
@@ -166,102 +208,85 @@ if setup_error:
 
 display(HTML('Prefix cells with <code>%%eigensheep [-n CONCURRENCY] [dependencies...]</code> to run in AWS Lambda. <a target="_blank" href="https://github.com/antimatter15/lambdu">Learn more...</a>'))
 
+@magics_class
+class EigensheepMagics(Magics):
 
-@register_cell_magic
-def eigensheep(line, cell):
-    default_lambda_runtime = 'python3.6'
-    if sys.version_info[0] == 2:
-        default_lambda_runtime = 'python2.7'
-
-    parser = argparse.ArgumentParser(
-        prog='eigensheep', 
-        description='Jupyter cell magic to invoke cell on AWS Lambda')
-
-    parser.add_argument('deps', type=str, nargs='*',
-                        help='dependencies to be installed via PyPI')
-
-    parser.add_argument('--memory', default=DEFAULT_MEMORY, type=int,
-                        help='amount of memory in 64MB increments from 128 up to 3008')
-
-    parser.add_argument('--timeout', default=DEFAULT_TIMEOUT, type=int,
-                        help='lambda execution timeout in seconds up to 900 (15 minutes)')
-
-    parser.add_argument('--no_install', action='store_true',
-                        help='do not install dependencies if not found')
-
-    parser.add_argument('--clean_all', action='store_true',
-                        help='remove all deployed dependencies')
-
-    parser.add_argument('--rm', action='store_true',
-                        help='remove a specific')
-
-    parser.add_argument('--reinstall', action='store_true',
-                        help='uninstall and reinstall')
-
-    parser.add_argument('--runtime', type=str, default=default_lambda_runtime,
-                        help='which runtime (python3.6, python2.7)')
-
-    parser.add_argument('-n', type=int, default=1,
-                        help='number of lambdas to invoke')
-
-    parser.add_argument('--verbose', action='store_true',
-                        help='show additional information from lambda invocation')
-
-    parser.add_argument('--name', type=str,
-                        help='name to store this lambda as')
-
-    args = parser.parse_args(line.split(' '))
-    deps = [ x for x in args.deps if x ]
-
-    box_config = {
-        'requirements': deps,
-        'memory': args.memory,
-        'timeout': args.timeout,
-        'runtime': args.runtime
-    }
-
-    alias = make_alias_name(box_config)
-
-    if args.clean_all:
-        remove_all_aliases()
-        return
-
-    if args.rm or args.reinstall:
-        ensure_setup()
-        try:
-            ali = threadLocal.lambdaClient.get_alias(FunctionName=FUNCTION_NAME, Name=alias)
-            threadLocal.lambdaClient.delete_alias(FunctionName=FUNCTION_NAME, Name=ali['Name'])
-            threadLocal.lambdaClient.delete_function(FunctionName=FUNCTION_NAME, 
-                Qualifier=ali['FunctionVersion'])
-            if alias in known_aliases:
-                known_aliases.remove(alias)
-            eprint('Deleted alias "%s".' % alias)
-
-        except threadLocal.lambdaClient.exceptions.ResourceNotFoundException:
-            pass
+    @line_cell_magic
+    def eigensheep(self, line, cell=None):
+        if not cell:
+            eprint("Did you accidentally type %eigensheep instead of %%eigensheep?")
+            return
         
-        if args.rm:
+        # print(self.shell.user_ns)
+
+        args = parser.parse_args(line.split(' '))
+        deps = [ x for x in args.deps if x ]
+
+        box_config = {
+            'requirements': deps,
+            'memory': args.memory,
+            'timeout': args.timeout,
+            'runtime': args.runtime
+        }
+
+        alias = make_alias_name(box_config)
+
+        if args.clean_all:
+            remove_all_aliases()
             return
 
-    if not args.no_install and alias not in known_aliases and not lambda_exists(FUNCTION_NAME, alias):
-        ensure_deps(box_config)
+        if args.rm or args.reinstall:
+            ensure_setup()
+            try:
+                ali = threadLocal.lambdaClient.get_alias(FunctionName=FUNCTION_NAME, Name=alias)
+                threadLocal.lambdaClient.delete_alias(FunctionName=FUNCTION_NAME, Name=ali['Name'])
+                threadLocal.lambdaClient.delete_function(FunctionName=FUNCTION_NAME, 
+                    Qualifier=ali['FunctionVersion'])
+                if alias in known_aliases:
+                    known_aliases.remove(alias)
+                eprint('Deleted alias "%s".' % alias)
 
-    run_config = {
-        'box': box_config,
-        'alias': alias,
-        'code': cell,
-        'verbose': args.verbose
-    }
+            except threadLocal.lambdaClient.exceptions.ResourceNotFoundException:
+                pass
+            
+            if args.rm:
+                return
 
-    if args.name:
-        storedLambdas[args.name] = run_config
-        eprint('Invoke this stored cell with `lambdu.invoke("%s")` or `lambdu.map("%s", [1, 2, ...])`' % (args.name, args.name))
-        return None
+        if not args.no_install and alias not in known_aliases and not lambda_exists(FUNCTION_NAME, alias):
+            ensure_deps(box_config)
 
-    if args.n > 1:
-        return map(run_config, range(args.n))
-    else:
-        return invoke(run_config)
+        root = ast.parse(cell)
+        names = set(node.id for node in ast.walk(root) if isinstance(node, ast.Name))
+        exported_vars = names.intersection(self.shell.user_ns.keys())
+        exported_globals = {}
+
+        for key in exported_vars:
+            exported_globals[key] = self.shell.user_ns[key]
+
+        run_config = {
+            'box': box_config,
+            'alias': alias,
+            'code': cell,
+            'verbose': args.verbose,
+            'globals': exported_globals
+        }
+
+
+
+        if args.name:
+            storedLambdas[args.name] = run_config
+            eprint('Invoke this stored cell with `lambdu.invoke("%s")` or `lambdu.map("%s", [1, 2, ...])`' % (args.name, args.name))
+            return None
+
+        if args.n > 1:
+            return map(run_config, range(args.n))
+        else:
+            return invoke(run_config)
+
+
+
+
+get_ipython().register_magics(EigensheepMagics)
 
 
 def install_lambda_deps(path, box_config):
@@ -380,6 +405,9 @@ def lambda_run(event, context):
         'INDEX': event['index'],
         'DATA': pickle.loads(zlib.decompress(base64.b64decode(event['zpickle64'])))
     }
+    if 'globals' in event:
+        for key in event['globals']:
+            globalenv[key] = event['globals'][key]
     result = my_exec(event['code'], globalenv, globalenv)
 
     output = {
@@ -455,30 +483,15 @@ def create_or_update_alias(version, alias):
         return threadLocal.lambdaClient.create_alias(
             FunctionName=FUNCTION_NAME, Name=alias, FunctionVersion=version)
     
-
-def zipdir(ziph, path, realpath):
-    for root, dirs, files in os.walk(realpath):
-        for file in files:
-            ziph.write(os.path.join(root, file),
-                os.path.normpath(os.path.join(path, os.path.relpath(root, realpath), file)))
-
 def zipstr(ziph, path, contents):    
     info = zipfile.ZipInfo(path)
     info.external_attr = 0o555 << 16 
     ziph.writestr(info, contents)
 
-def build_lambda_package(box_config):
+def build_minimal_lambda_package():
     pseudofile = io.BytesIO()
     zipf = zipfile.ZipFile(pseudofile, 'w', zipfile.ZIP_DEFLATED)
-    
-    # if 'python' in box_config['runtime']:
-    #     zipdir(zipf, 'python_lambda_deps/', dep_path)
     zipstr(zipf, 'main.py', LAMBDA_TEMPLATE_PYTHON)
-    
-    # elif 'nodejs' in box_config['runtime']:
-    #     zipdir(zipf, '', dep_path)
-    #     zipstr(zipf, 'main.js', LAMBDA_TEMPLATE_NODEJS)
-
     zipf.close()
     return pseudofile.getvalue()
 
@@ -495,7 +508,7 @@ def ensure_deps(box_config):
 
     if len(box_config['requirements']) == 0:
         eprint("Building Lambda package...")
-        package_contents = build_lambda_package(box_config)
+        package_contents = build_minimal_lambda_package()
         eprint("Uploading package to AWS (%s)..." % human_size(len(package_contents)))
         update_lambda_config(box_config)
         result = threadLocal.lambdaClient.update_function_code(
@@ -577,6 +590,9 @@ def map(run_config, data = [0]):
             'code': run_config['code'],
             'index': i
         }
+
+        if 'globals' in run_config:
+            payload['globals'] = run_config['globals']
 
         if 'python' in box_config['runtime']:
             # TODO: automatically choose the highest pickle version which is compatible
