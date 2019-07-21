@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="eigensheep",
-    version="0.0.1",
+    version="0.0.2",
     author="Kevin Kwok",
     author_email="antimatter15@gmail.com",
     description="Run Jupyter cells in AWS Lambda for massively parallel experimentation",

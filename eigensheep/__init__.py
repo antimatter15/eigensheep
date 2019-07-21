@@ -29,6 +29,7 @@ FUNCTION_NAME = 'EigensheepLambda'
 BUCKET_PREFIX = 'eigensheep-'
 STACK_TEMPLATE_URL = 'https://eigensheep.s3.amazonaws.com/template.yaml'
 GITHUB_URL = 'https://github.com/antimatter15/lambdu'
+LAMBDA_TEMPLATE_PYTHON = open(os.path.join(os.path.dirname(__file__), 'template.py'), 'r').read()
 
 
 DEFAULT_MEMORY = 512
@@ -54,34 +55,24 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument('deps', type=str, nargs='*',
                     help='dependencies to be installed via PyPI')
-
 parser.add_argument('--memory', default=DEFAULT_MEMORY, type=int,
                     help='amount of memory in 64MB increments from 128 up to 3008')
-
 parser.add_argument('--timeout', default=DEFAULT_TIMEOUT, type=int,
                     help='lambda execution timeout in seconds up to 900 (15 minutes)')
-
 parser.add_argument('--no_install', action='store_true',
                     help='do not install dependencies if not found')
-
 parser.add_argument('--clean_all', action='store_true',
                     help='remove all deployed dependencies')
-
 parser.add_argument('--rm', action='store_true',
                     help='remove a specific')
-
 parser.add_argument('--reinstall', action='store_true',
                     help='uninstall and reinstall')
-
 parser.add_argument('--runtime', type=str, default='python2.7' if sys.version_info[0] == 2 else 'python3.6',
                     help='which runtime (python3.6, python2.7)')
-
 parser.add_argument('-n', type=int, default=1,
                     help='number of lambdas to invoke')
-
 parser.add_argument('--verbose', action='store_true',
                     help='show additional information from lambda invocation')
-
 parser.add_argument('--name', type=str,
                     help='name to store this lambda as')
 
@@ -95,16 +86,14 @@ def ensure_setup():
         executor = ThreadPoolExecutor(max_workers=MAX_CONCURRENCY)
 
     # if we have already defined the lambda client skip the rest
-    if hasattr(threadLocal, 'lambdaClient'):
-        return
+    if hasattr(threadLocal, 'lambdaClient'): return
 
     session = boto3.session.Session(profile_name=AWS_PROFILE)
     threadLocal.lambdaClient = session.client('lambda')
     threadLocal.s3Client = session.client('s3')
 
     # if we have already loaded the accountID then skip the rest
-    if accountID:
-        return
+    if accountID: return
 
     accountID = session.client('sts').get_caller_identity().get('Account')
 
@@ -135,24 +124,13 @@ def lambda_exists(name, alias):
     return True
 
 
-
 def show_setup():
-    access_key = widgets.Text(
-        description="Access Key: ",
-        placeholder="AKIAJXSDOIF")
+    access_key = widgets.Text(description="Access Key: ", placeholder="AKIAJXSDOIF")
+    secret_key = widgets.Text(description="Secret Key: ", placeholder="1/Wi3ns8e3nKLSeiwnMn")
+    region = widgets.Text(description="Region: ", placeholder="us-east-1", value="us-east-1")
 
-    secret_key = widgets.Text(
-        description="Secret Key: ",
-        placeholder="1/Wi3ns8e3nKLSeiwnMn")
-
-    region = widgets.Text(
-        description="Region: ",
-        placeholder="us-east-1",
-        value="us-east-1")
-
-    # display cloudformation button
     display(HTML("""
-    <img src="https://raw.githubusercontent.com/antimatter15/lambdu/master/logo.png" style="width: 300px; max-width: 100%"/>
+    <img src="https://raw.githubusercontent.com/antimatter15/lambdu/master/images/logo.png" style="width: 300px; max-width: 100%"/>
     <b>It looks like you haven't set up Eigensheep yet</b>. 
 
     You can get started with Eigensheep with just a few clicks by following these instructions:<br/>
@@ -317,8 +295,7 @@ class EigensheepMagics(Magics):
             except threadLocal.lambdaClient.exceptions.ResourceNotFoundException:
                 pass
             
-            if args.rm:
-                return
+            if args.rm: return
 
         if not args.no_install and alias not in known_aliases and not lambda_exists(FUNCTION_NAME, alias):
             ensure_deps(box_config)
@@ -373,135 +350,6 @@ def make_alias_name(box_config):
         box_config['memory'], 
         box_config['timeout'], 
         h.hexdigest()[:5])) + reqs    
-
-
-# TODO: consider using https://github.com/ipython/ipython/blob/
-#                      master/IPython/core/interactiveshell.py
-# Based on: https://stackoverflow.com/a/47130538
-
-LAMBDA_TEMPLATE_PYTHON = """
-import os, sys, ast, pprint, pickle, base64, zlib
-
-sys.path.append(os.path.join(os.path.dirname(__file__), 'python_lambda_deps'))
-
-def pickle_serialize(out):
-    try:
-        data = base64.b64encode(zlib.compress(pickle.dumps(out, 2))).decode('utf-8')
-        if len(data) > 5 * 1024 * 1024:
-            # Don't use print() because this code needs to run on both py2k and py3k
-            sys.stdout.write('WARN: Pickle serialization exceeds 5MB, not returning result.\\n')
-            return (False, None)
-        return (True, data)
-    except Exception:
-        return (False, None)
-
-def lambda_handler(event, context):
-    if event['type'] == 'RUN':
-        return lambda_run(event, context)
-    elif event['type'] == 'BUILD':
-        return lambda_build(event, context)
-
-
-def lambda_build(event, context):
-    import subprocess
-    import boto3
-    import shutil
-
-    s3 = boto3.resource('s3')
-    
-    os.chdir('/tmp')
-    path = '/tmp/deps'
-    if os.path.exists(path):
-        shutil.rmtree(path)
-    proc = subprocess.Popen([
-            '/var/lang/bin/pip',
-            'install',
-            '--no-cache-dir',
-            '--progress-bar=off',
-            '--target=' + path
-        ] + event['requirements'], 
-        stdout=subprocess.PIPE, 
-        stderr=subprocess.STDOUT)
-
-    output = proc.communicate()[0]
-    package = build_lambda_package(path)
-
-    s3.Bucket(event['s3_bucket']).put_object(
-            Key=event['s3_key'], 
-            Body=package)
-
-    return {
-        'output': output.decode('utf-8')
-    }
-
-
-def zipdir(ziph, path, realpath):
-    for root, dirs, files in os.walk(realpath):
-        for file in files:
-            ziph.write(os.path.join(root, file),
-                os.path.normpath(os.path.join(path, os.path.relpath(root, realpath), file)))
-
-def zipstr(ziph, path, contents):    
-    import zipfile
-    info = zipfile.ZipInfo(path)
-    info.external_attr = 0o555 << 16 
-    ziph.writestr(info, contents)
-
-
-def build_lambda_package(dep_path):
-    import io
-    import zipfile
-
-    pseudofile = io.BytesIO()
-    zipf = zipfile.ZipFile(pseudofile, 'w', zipfile.ZIP_DEFLATED)
-    
-    zipdir(zipf, 'python_lambda_deps/', dep_path)
-    zipstr(zipf, 'main.py', open("/var/task/main.py", "r").read())
-    
-    zipf.close()
-    return pseudofile.getvalue()
-
-
-def lambda_run(event, context):
-    globalenv = {
-        'INDEX': event['index'],
-        'DATA': pickle.loads(zlib.decompress(base64.b64decode(event['zpickle64'])))
-    }
-    if 'globals' in event:
-        for key in event['globals']:
-            globalenv[key] = event['globals'][key]
-    result = my_exec(event['code'], globalenv, globalenv)
-
-    output = {
-        'machine': os.environ['AWS_LAMBDA_LOG_STREAM_NAME'],
-        'pretty': pprint.pformat(result, indent=4),
-    }
-
-    pickle_serializable, pickle_data = pickle_serialize(result)
-    if pickle_serializable:
-        output['zpickle64'] = pickle_data
-
-    return output
-
-def my_exec(script, globals=None, locals=None):
-    '''Execute a script and return the value of the last expression'''
-    stmts = list(ast.iter_child_nodes(ast.parse(script)))
-    if not stmts:
-        return None
-    if isinstance(stmts[-1], ast.Expr):
-        # the last one is an expression and we will try to return the results
-        # so we first execute the previous statements
-        if len(stmts) > 1:
-            exec(compile(ast.Module(body=stmts[:-1]), 
-                filename="<ast>", mode="exec"), globals, locals)
-        # then we eval the last one
-        return eval(compile(ast.Expression(body=stmts[-1].value), 
-            filename="<ast>", mode="eval"), globals, locals)
-    else:
-        # otherwise we just execute the entire code
-        exec(script, globals, locals)
-"""
-
 
 
 def remove_all_aliases():
@@ -560,9 +408,7 @@ def update_lambda_config(box_config):
 
 def ensure_deps(box_config):
     alias = make_alias_name(box_config)
-    if lambda_exists(FUNCTION_NAME, alias):
-        return
-
+    if lambda_exists(FUNCTION_NAME, alias): return
     if len(box_config['requirements']) == 0:
         package_contents = build_minimal_lambda_package()
         update_lambda_config(box_config)
@@ -701,14 +547,11 @@ class QuietError(Exception):
 
 def hide_traceback(exc_tuple=None, filename=None, tb_offset=None,
                    exception_only=False, running_compiled_code=False):
-    
     etype, value, tb = sys.exc_info()
-
     if issubclass(etype, QuietError):
         value = value.error
         etype = type(value)
         return ipython._showtraceback(etype, value, ipython.InteractiveTB.get_exception_only(etype, value))
-
     return ipython.original_showtraceback(
         exc_tuple=exc_tuple, 
         filename=filename, 
