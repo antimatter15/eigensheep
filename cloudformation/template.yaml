@@ -63,15 +63,14 @@ Resources:
                     - Arn
               - Effect: Allow
                 Action:
-                  - 's3:GetObject'
-                  - 's3:PutObject'
+                  - 's3:*'
                 Resource:
-                  - !Join 
+                  - !Join
                     - ''
                     - - !GetAtt
                         - EigensheepBucket
                         - Arn
-                      - '/*'
+                      - '*'
     Metadata:
       'AWS::CloudFormation::Designer':
         id: 3f1f9cbf-4566-4630-a370-91c494682a4c
