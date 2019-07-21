@@ -413,7 +413,8 @@ def make_alias_name(box_config):
     h = hashlib.sha256(b'1')
     h.update(LAMBDA_TEMPLATE_PYTHON.encode('utf-8'))
     for req in requirements: h.update(req.encode('utf-8'))
-    reqs = '_'.join(requirements)[:100]
+    reqs = '_'.join(re.sub('[^\\w]', '', x) for x in requirements)[:50]
+
     if reqs == '': reqs = 'NO-DEPS'
     return ('%s-%dM-%ds-%s-' % (
         box_config['runtime'].replace('.', ''), 
