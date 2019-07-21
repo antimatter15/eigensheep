@@ -1,3 +1,4 @@
+from __future__ import print_function
 from IPython.core.magic import Magics, magics_class, line_cell_magic
 from IPython.core.display import display, HTML, Javascript
 from ipywidgets import widgets
@@ -39,7 +40,6 @@ BOOTSTRAP_CONFIG = {
     'requirements': [],
     'memory': 512,
     'timeout': 300,
-    'runtime': 'python3.6'
 }
 
 threadLocal = threading.local()
@@ -74,7 +74,8 @@ parser.add_argument('--rm', action='store_true',
 parser.add_argument('--reinstall', action='store_true',
                     help='uninstall and reinstall')
 
-parser.add_argument('--runtime', type=str, default='python3.6',
+
+parser.add_argument('--runtime', type=str, default='python2.7' if sys.version_info[0] == 2 else 'python3.6',
                     help='which runtime (python3.6, python2.7)')
 
 parser.add_argument('-n', type=int, default=1,
@@ -160,7 +161,6 @@ def hide_traceback(exc_tuple=None, filename=None, tb_offset=None,
 
 class QuietError(Exception):
     def __init__(self, error):
-        # super(Exception).__init__(str(error))
         super().__init__(str(error))
         self.error = error
 
@@ -598,7 +598,6 @@ def human_size(bytes, units=[' bytes','KB','MB','GB','TB', 'PB', 'EB']):
 def ensure_deps(box_config):
     alias = make_alias_name(box_config)
     if lambda_exists(FUNCTION_NAME, alias):
-        # eprint("Alias '%s' already exists." % alias)
         return
 
     if len(box_config['requirements']) == 0:
@@ -611,6 +610,7 @@ def ensure_deps(box_config):
             Publish=True
         )
     else:
+        BOOTSTRAP_CONFIG['runtime'] = box_config['runtime']
         bootstrap_alias = make_alias_name(BOOTSTRAP_CONFIG)
         ensure_deps(BOOTSTRAP_CONFIG)
         eprint("Installing dependencies (this will take a while)...")
