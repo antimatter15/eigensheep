@@ -24,7 +24,7 @@ Once Eigensheep is set up, you can run any code on Lambda by prefixing the cell 
 
 <img src="https://raw.githubusercontent.com/antimatter15/lambdu/master/images/parallel.gif" alt="eigensheep usage" width="500"  />
 
-## FAQ
+## Frequently Asked Questions
 
 *Q: Why is this library called Eigensheep?*
 
@@ -66,10 +66,14 @@ The IAM User can only read/write from a specific bucket earmarked for use with E
 All of the access keys can be revoked and all of the resources can be removed simply by deleting the CloudFormation stack from the AWS console. 
 
 
-*Q: Where does Eigensheep store access key information?*
+*Q: Where does Eigensheep store its configuration?*
 
 A: Eigensheep stores its access keys and configuration in the `~/.aws/config` file under the `eigensheep` profile.
 
+
+*Q: Can I use Eigensheep without installing the CloudFormation Stack?*
+
+A: Yes. Although it's a bit more complicated to set up. You can use any AWS access key and secret, so long as it has the ability to modify/invoke a Lambda named "EigensheepLambda" (which must be manually created). You must also create an S3 bucket named "eigensheep-YOUR_ACCOUNT_ID", where YOUR_ACCOUNT_ID is your numerical AWS account ID.
 
 
 ## Acknowledgements
