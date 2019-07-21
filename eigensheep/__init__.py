@@ -272,7 +272,6 @@ class EigensheepMagics(Magics):
         if not cell:
             raise UsageError("Did you accidentally type %eigensheep instead of %%eigensheep?")
         
-
         deps = [ x for x in args.deps if x ]
 
         box_config = {

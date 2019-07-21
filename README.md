@@ -110,6 +110,12 @@ optional arguments:
 `eigensheep.invoke("do_stuff")`
 
 
+
+```
+%eigensheep --clean
+```
+
+
 ## Acknowledgements
 
 This library was written by [Kevin Kwok](https://twitter.com/antimatter15) and [Guillermo Webster](https://twitter.com/biject). It is based on Jupyter/IPython, `tqdm`, `boto3`, and countless Stackoverflow answers.
