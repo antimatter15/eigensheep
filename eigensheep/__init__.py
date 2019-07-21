@@ -303,7 +303,6 @@ class EigensheepMagics(Magics):
 
         alias = make_alias_name(box_config)
 
-
         if args.rm or args.reinstall:
             ensure_setup()
             try:
@@ -718,8 +717,6 @@ def hide_traceback(exc_tuple=None, filename=None, tb_offset=None,
         running_compiled_code=running_compiled_code)
 
 
-
-
 try:
     ipython = get_ipython()
 except NameError:
@@ -741,6 +738,7 @@ except Exception as e:
 if not hasattr(ipython, 'original_showtraceback'):
     ipython.original_showtraceback = ipython.showtraceback
 ipython.showtraceback = hide_traceback
+
 
 if setup_error:
     show_setup()
