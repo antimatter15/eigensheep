@@ -365,7 +365,12 @@ class EigensheepMagics(Magics):
         exported_globals = {}
 
         for key in exported_vars:
-            exported_globals[key] = self.shell.user_ns[key]
+            val = self.shell.user_ns[key]
+            try:
+                json.dumps(val)
+                exported_globals[key] = val
+            except:
+                pass
 
         run_config = {
             'box': box_config,
