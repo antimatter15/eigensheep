@@ -363,11 +363,11 @@ class EigensheepMagics(Magics):
             raise QuietError(err)
 
         names = set(node.id for node in ast.walk(root) if isinstance(node, ast.Name))
-        exported_vars = names.intersection(self.shell.user_ns.keys())
+        exported_vars = names.intersection(ipython.user_ns.keys())
         exported_globals = {}
 
         for key in exported_vars:
-            val = self.shell.user_ns[key]
+            val = ipython.user_ns[key]
             try:
                 json.dumps(val)
                 exported_globals[key] = val
@@ -655,9 +655,6 @@ def ensure_deps(box_config):
     create_or_update_alias(result['Version'], alias)
     eprint("Successfully deployed as '%s'." % alias)
 
-def user_variable(name):
-    # TODO: this always returns the re module
-    return re
 
 def invoke_thread(info):
     ensure_setup()
@@ -685,12 +682,11 @@ def invoke_thread(info):
             return data['pretty']
         elif 'errorType' in data and data['errorType'] == 'NameError' and data['errorMessage']:
             nameMatch = re.search("(?:name ')([^']+)(?:' is not defined)", data['errorMessage'])
-            print(nameMatch)
             if not nameMatch:
                 return data
             name = nameMatch.group(1)
-            if isinstance(user_variable(name), ModuleType):
-                return "To use the module '" + name + "' with eigensheep you need to import it in this cell."
+            if isinstance(ipython.user_ns.get(name, None), ModuleType):
+                eprint("To use the module '" + name + "' with eigensheep you need to import it in this cell.")
             return data
         else:
             return data
