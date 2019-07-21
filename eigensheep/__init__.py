@@ -693,7 +693,9 @@ def invoke_thread(info):
                     nameMatch = re.search("(?:No module named ')([^']+)(?:')", data['errorMessage'])
                     if nameMatch:
                         name = nameMatch.group(1)
-                        eprint("AWS Lambda doesn't include '" + name + "' by default. To use it, add it to your eigensheep call above, e.g. '%%eigensheep " + name + "'.")
+                        eprint("AWS Lambda doesn't include '" + name + "' by default."
+                            +"\nTo use '""" + name + "' in Lambda, add the corresponding PyPI package to your eigensheep call above."
+                            +"\nThis might look like: '%%eigensheep pypi_package_exporting_""" + name + "'.")
             return data
 
 def map(run_config, data = [0]):
