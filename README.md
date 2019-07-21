@@ -79,7 +79,7 @@ A: Yes. Although it's a bit more complicated to set up. You can use any AWS acce
 
 ```
 usage: %%eigensheep [-h] [--memory MEMORY] [--timeout TIMEOUT] [--no_install]
-                    [--clean_all] [--rm] [--reinstall] [--runtime RUNTIME]
+                    [--clean] [--rm] [--reinstall] [--runtime RUNTIME]
                     [-n N] [--verbose] [--name NAME]
                     [deps [deps ...]]
 
@@ -94,7 +94,7 @@ optional arguments:
   --timeout TIMEOUT  lambda execution timeout in seconds up to 900 (15
                      minutes)
   --no_install       do not install dependencies if not found
-  --clean_all        remove all deployed dependencies
+  --clean        remove all deployed dependencies
   --rm               remove a specific
   --reinstall        uninstall and reinstall
   --runtime RUNTIME  which runtime (python3.6, python2.7)

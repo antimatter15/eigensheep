@@ -61,7 +61,7 @@ parser.add_argument('--timeout', default=DEFAULT_TIMEOUT, type=int,
                     help='lambda execution timeout in seconds up to 900 (15 minutes)')
 parser.add_argument('--no_install', action='store_true',
                     help='do not install dependencies if not found')
-parser.add_argument('--clean_all', action='store_true',
+parser.add_argument('--clean', action='store_true',
                     help='remove all deployed dependencies')
 parser.add_argument('--rm', action='store_true',
                     help='remove a specific')
@@ -265,7 +265,7 @@ class EigensheepMagics(Magics):
         except SystemExit:
             return
 
-        if args.clean_all:
+        if args.clean:
             remove_all_aliases()
             return
 
