@@ -54,29 +54,29 @@ parser = argparse.ArgumentParser(
     description='Jupyter cell magic to invoke cell on AWS Lambda')
 
 parser.add_argument('deps', type=str, nargs='*',
-                    help='dependencies to be installed via PyPI')
+                    help='dependencies to be installed via pip')
+parser.add_argument('-n', type=int, default=1,
+                    help='number of parallel lambdas to invoke')
 parser.add_argument('--memory', default=DEFAULT_MEMORY, type=int,
                     help='amount of memory in 64MB increments from 128 up to 3008')
 parser.add_argument('--timeout', default=DEFAULT_TIMEOUT, type=int,
                     help='lambda execution timeout in seconds up to 900 (15 minutes)')
-parser.add_argument('--no_install', action='store_true',
-                    help='do not install dependencies if not found')
-parser.add_argument('--clean', action='store_true',
-                    help='remove all deployed dependencies')
-parser.add_argument('--rm', action='store_true',
-                    help='remove a specific')
-parser.add_argument('--reinstall', action='store_true',
-                    help='uninstall and reinstall')
 parser.add_argument('--runtime', type=str, default='python2.7' if IS_PYTHON2 else 'python3.7',
-                    help='which runtime (python3.7, python2.7)')
+                    help='lambda runtime (python3.7, python2.7) defaults configured based on host environment')
 parser.add_argument('--layer', action='append', default=[],
-                    help='lambda layers to use')
-parser.add_argument('-n', type=int, default=1,
-                    help='number of lambdas to invoke')
+                    help='ARNs of lambda layers to include')
+parser.add_argument('--reinstall', action='store_true',
+                    help='regenerate lambda configuration and dependencies')
+parser.add_argument('--no_install', action='store_true',
+                    help='do not install dependencies if configration not found')
+parser.add_argument('--clean', action='store_true',
+                    help='clear all deployed lambda configurations')
+parser.add_argument('--rm', action='store_true',
+                    help='remove a specific lambda configuration')
+parser.add_argument('--name', type=str,
+                    help='store the lambda for later use with `eigensheep.map` or `eigensheep.invoke`')
 parser.add_argument('--verbose', action='store_true',
                     help='show additional information from lambda invocation')
-parser.add_argument('--name', type=str,
-                    help='name to store this lambda as')
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
