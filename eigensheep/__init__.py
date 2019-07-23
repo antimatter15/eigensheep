@@ -631,6 +631,12 @@ def hide_traceback(**kwargs):
     return ipython.original_showtraceback(**kwargs)
 
 
+def run_cell_magic(magic_name, line, cell):
+    if magic_name in ('eigensheep', 'es') and cell == '':
+        cell = '\n\n'
+    return ipython.original_run_cell_magic(magic_name, line, cell)
+
+
 try:
     ipython = get_ipython()
 except NameError:
@@ -654,6 +660,10 @@ if not hasattr(ipython, 'original_showtraceback'):
     ipython.original_showtraceback = ipython.showtraceback
 ipython.showtraceback = hide_traceback
 
+
+if not hasattr(ipython, 'original_run_cell_magic'):
+    ipython.original_run_cell_magic = ipython.run_cell_magic
+ipython.run_cell_magic = run_cell_magic
 
 if setup_error:
     show_setup()
