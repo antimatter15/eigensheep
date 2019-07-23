@@ -7,7 +7,6 @@ from tqdm import tqdm_notebook as tqdm
 from ipywidgets import widgets
 from os.path import expanduser
 from types import ModuleType
-import configparser
 import hashlib
 import threading
 import boto3
@@ -191,19 +190,26 @@ def show_setup():
     display(button)
 
     def handle_submit(sender):
-        config = configparser.ConfigParser()
         try:
-            os.mkdir(expanduser("~/.aws"))
-        except FileExistsError:
+            import ConfigParser as configparser
+        except ImportError:
+            import configparser
+
+        from os import mkdir
+        from os.path import expanduser
+        from IPython.core.display import display, Javascript
+
+        try:
+            mkdir(expanduser("~/.aws"))
+        except OSError:
             pass
 
         config = configparser.ConfigParser()
         config.read(expanduser("~/.aws/config"))
-        config['profile eigensheep'] = {
-            'region': region.value,
-            'aws_access_key_id': access_key.value,
-            'aws_secret_access_key': secret_key.value
-        }
+        config.set('profile eigensheep', 'region', region.value)
+        config.set('profile eigensheep', 'aws_access_key_id', access_key.value)
+        config.set('profile eigensheep', 'aws_secret_access_key', secret_key.value)
+
         with open(expanduser("~/.aws/config"), 'w') as configfile:
             config.write(configfile)
 
@@ -596,22 +602,25 @@ def invoke(run_config, data = 0):
 
 class QuietError(Exception):
     def __init__(self, error):
-        super().__init__(str(error))
+        super(QuietError, self).__init__(str(error))
         self.error = error
 
-def hide_traceback(exc_tuple=None, filename=None, tb_offset=None,
-                   exception_only=False, running_compiled_code=False):
+def hide_traceback(**kwargs):
+    
+    # This is a workaround for Python 2.7 support, as the module
+    # gets unloaded and all the imports show up as None
+    import sys as sys
+    ipython = get_ipython()
+
     etype, value, tb = sys.exc_info()
-    if issubclass(etype, QuietError):
+
+    # We can't use subclass because QuietError unloaded in Python 2.7
+    # if an exception is raised during the import process
+    if etype.__name__ == 'QuietError':
         value = value.error
         etype = type(value)
         return ipython._showtraceback(etype, value, ipython.InteractiveTB.get_exception_only(etype, value))
-    return ipython.original_showtraceback(
-        exc_tuple=exc_tuple, 
-        filename=filename, 
-        tb_offset=tb_offset, 
-        exception_only=exception_only, 
-        running_compiled_code=running_compiled_code)
+    return ipython.original_showtraceback(**kwargs)
 
 
 try:
@@ -632,6 +641,7 @@ except Exception as e:
 # This traceback code needs to happen before
 # show_setup() where we throw an exception. 
 # because we don't want an ugly python traceback.
+
 if not hasattr(ipython, 'original_showtraceback'):
     ipython.original_showtraceback = ipython.showtraceback
 ipython.showtraceback = hide_traceback
