@@ -258,6 +258,16 @@ DATA + 42
 # In a different cell, call `eigensheep.map("do_stuff", [1, 2, 3, 4])`
 </pre>
 </details>
+
+<br/>
+The following magic global variables are avaiable to code running on AWS Lambda through Eigensheep: <br/>
+<ul>
+<li><tt>SAVE(key, data)</tt>: saves <tt>data</tt> to a file named <tt>key</tt> in the Eigensheep s3 bucket.<br/></li>
+<li><tt>LOAD(key)</tt>: returns the contents of the file named <tt>key</tt> in the Eigensheep s3 bucket.<br/></li>
+<li><tt>INDEX</tt>: the index (starting at 0) of the lambda running your code. 
+This means each lambda runnning in parallel gets a different INDEX variable, which is useful for doing different jobs on each one.
+Check out the examples for inspiration.</li>
+</ul>
 """))
 
 
