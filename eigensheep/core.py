@@ -1,3 +1,6 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 from __future__ import print_function
 from eigensheep.template import zipstr, encode_result, decode_result
 from IPython.core.magic import Magics, magics_class, line_cell_magic

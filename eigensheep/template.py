@@ -1,3 +1,6 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 import os, sys, ast, pprint, pickle, base64, zlib, hashlib
 
 # TODO: consider using https://github.com/ipython/ipython/blob/
