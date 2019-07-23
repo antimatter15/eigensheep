@@ -254,9 +254,15 @@ INDEX + 1 # returns [1, 2, 3, ..., 99, 100]
 <details>
 <summary>Example: Mapping through an array</summary>
 <pre style="padding-left: 20px">%%eigensheep --name do_stuff
-DATA + 42
+DATA + INDEX
 # In a different cell, call `eigensheep.map("do_stuff", [1, 2, 3, 4])`
 </pre>
+<ul>
+<li><tt>INDEX</tt>: the index (starting at 0) of the lambda running your code. 
+This means each lambda runnning in parallel gets a different INDEX variable, which is useful for doing different jobs on each one.
+Check out the examples for inspiration.</li>
+<li><tt>DATA</tt>: the data corresponding to a particular index.</li>
+</ul>
 </details>
 
 <details>
@@ -271,16 +277,14 @@ for token in data:
 </pre>
 </details>
 
-<br/>
-The magic global variables <tt>INDEX</tt>, <tt>SAVE</tt>, and <tt>LOAD</tt> are exposed to code running on AWS Lambda through Eigensheep.
 <details>
-<summary>Global variable reference</summary>
+<summary>Example: Save/Load data in Eigensheep S3 Bucket</summary>
+<div>
+These APIs are available from both the parent notebook and the Lambda environment. These methods are injected into the global scope. 
+</div>
 <ul>
-<li><tt>SAVE(key, data)</tt>: saves <tt>data</tt> to a file named <tt>key</tt> in the Eigensheep s3 bucket.<br/></li>
-<li><tt>LOAD(key)</tt>: returns the contents of the file named <tt>key</tt> in the Eigensheep s3 bucket.<br/></li>
-<li><tt>INDEX</tt>: the index (starting at 0) of the lambda running your code. 
-This means each lambda runnning in parallel gets a different INDEX variable, which is useful for doing different jobs on each one.
-Check out the examples for inspiration.</li>
+<li><tt>SAVE(key, data)</tt>: saves <tt>data</tt> to a file named <tt>key</tt> in the Eigensheep S3 bucket.<br/></li>
+<li><tt>LOAD(key)</tt>: returns the contents of the file named <tt>key</tt> in the Eigensheep S3 bucket.<br/></li>
 </ul>
 </details>
 """))
