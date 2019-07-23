@@ -57,17 +57,22 @@ Resources:
               - Effect: Allow
                 Action:
                   - 'lambda:*'
-                Resource: 
+                Resource:
                   - !GetAtt 
                     - EigensheepLambda
                     - Arn
               - Effect: Allow
                 Action:
+                  - 'lambda:GetLayerVersion'
+                Resource:
+                  - '*'
+              - Effect: Allow
+                Action:
                   - 's3:*'
                 Resource:
-                  - !Join
+                  - !Join 
                     - ''
-                    - - !GetAtt
+                    - - !GetAtt 
                         - EigensheepBucket
                         - Arn
                       - '*'
@@ -118,10 +123,10 @@ Resources:
                 Resource:
                   - !Join 
                     - ''
-                    - - !GetAtt
+                    - - !GetAtt 
                         - EigensheepBucket
                         - Arn
-                      - '/*'
+                      - /*
               - Effect: Allow
                 Action:
                   - 'xray:PutTraceSegments'
@@ -145,7 +150,7 @@ Resources:
       Runtime: python3.6
       Handler: index
       FunctionName: EigensheepLambda
-      Description: 'Eigensheep Parallel Lambda Worker'
+      Description: Eigensheep Parallel Lambda Worker
       TracingConfig:
         Mode: Active
     Metadata:
