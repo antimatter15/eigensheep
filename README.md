@@ -18,11 +18,11 @@ Open a Jupyter notebook with `jupyter notebook` and create a new Python notebook
 
 Follow the on-screen instructions to configure AWS credentials. AWS credentials will be saved to `~/.aws/config` under the `eigensheep` profile for subsequent invocations. Eigensheep uses AWS CloudFormation so you only need a few clicks to get started (see our [guided video walkthrough](https://www.youtube.com/watch?v=jdurk2DRdAs)). 
 
-<img src="https://raw.githubusercontent.com/antimatter15/lambdu/master/images/setup.png" alt="eigensheep setup" width="500" />
+[<img src="https://raw.githubusercontent.com/antimatter15/lambdu/master/images/setup.png" alt="eigensheep setup" width="500" />](https://www.youtube.com/watch?v=jdurk2DRdAs)
 
 Once Eigensheep is set up, you can run any code on Lambda by prefixing the cell with `%%eigensheep`. You can include dependencies from `pip` by typing `%%eigensheep <list of package names>`, for example `%%eigensheep requests numpy`. You can invoke a cell multiple times concurrently with the `-n` parameter, for example `%%eigensheep -n 100`. 
 
-<img src="https://raw.githubusercontent.com/antimatter15/lambdu/master/images/parallel.gif" alt="eigensheep usage" width="500"  />
+[<img src="https://raw.githubusercontent.com/antimatter15/lambdu/master/images/parallel.gif" alt="eigensheep usage" width="500"  />](https://www.youtube.com/watch?v=jdurk2DRdAs)
 
 ## Frequently Asked Questions
 
