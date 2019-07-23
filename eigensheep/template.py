@@ -30,7 +30,7 @@ def lambda_handler(event, context):
         import boto3
         class Context: pass
         ctx = Context()
-        
+
         ctx.s3Client = boto3.client("s3")
         ctx.bucket = event['s3_bucket']
         return ctx
@@ -45,8 +45,6 @@ def lambda_handler(event, context):
 def lambda_build(event, context):
     import subprocess
     import shutil
-    aws = get_aws()
-
     os.chdir("/tmp")
     path = "/tmp/deps"
     if os.path.exists(path):
