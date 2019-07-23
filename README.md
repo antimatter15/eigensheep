@@ -20,7 +20,7 @@ Follow the on-screen instructions to configure AWS credentials. Eigensheep uses 
 
 <img src="https://raw.githubusercontent.com/antimatter15/lambdu/master/images/setup.png" alt="eigensheep setup" width="500" />
 
-Once Eigensheep is set up, you can run any code on Lambda by prefixing the cell with `%%eigensheep`. You can include dependencies from `pip` by typing `%%eigensheep requests numpy`. You can invoke a cell multiple times concurrently with `%%eigensheep -n 100`. 
+Once Eigensheep is set up, you can run any code on Lambda by prefixing the cell with `%%eigensheep`. You can include dependencies from `pip` by typing `%%eigensheep <list of package names>`, for example `%%eigensheep requests numpy`. You can invoke a cell multiple times concurrently with the `-n` parameter, for example `%%eigensheep -n 100`. 
 
 <img src="https://raw.githubusercontent.com/antimatter15/lambdu/master/images/parallel.gif" alt="eigensheep usage" width="500"  />
 
