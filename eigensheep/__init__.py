@@ -37,7 +37,6 @@ MAX_CONCURRENCY = 1000
 
 
 BOOTSTRAP_CONFIG = {
-    'requirements': [],
     'memory': 512,
     'timeout': 300,
 }
@@ -70,6 +69,8 @@ parser.add_argument('--reinstall', action='store_true',
                     help='uninstall and reinstall')
 parser.add_argument('--runtime', type=str, default='python2.7' if IS_PYTHON2 else 'python3.7',
                     help='which runtime (python3.7, python2.7)')
+parser.add_argument('--layer', action='append', default=[],
+                    help='lambda layers to use')
 parser.add_argument('-n', type=int, default=1,
                     help='number of lambdas to invoke')
 parser.add_argument('--verbose', action='store_true',
@@ -286,7 +287,8 @@ class EigensheepMagics(Magics):
             'requirements': deps,
             'memory': args.memory,
             'timeout': args.timeout,
-            'runtime': args.runtime
+            'runtime': args.runtime,
+            'layers': args.layer
         }
 
         alias = make_alias_name(box_config)
@@ -347,10 +349,11 @@ class EigensheepMagics(Magics):
 
 
 def make_alias_name(box_config):
-    requirements = sorted([x.lower() for x in set(box_config['requirements'])])
+    requirements = sorted([x.lower() for x in set(box_config.get('requirements', []))])
     h = hashlib.sha256(b'1')
     h.update(LAMBDA_TEMPLATE_PYTHON.encode('utf-8'))
     for req in requirements: h.update(req.encode('utf-8'))
+    for req in box_config.get('layers', []): h.update(req.encode('utf-8'))
     reqs = '_'.join(re.sub('[^\\w]', '', x) for x in requirements)[:50]
 
     if reqs == '': reqs = 'clean'
@@ -414,14 +417,17 @@ def update_lambda_config(box_config):
         Runtime=runtime,
         MemorySize=memory,
         Handler=handler,
+        Layers=box_config.get('layers', [])
     )
 
 
 def ensure_deps(box_config):
     alias = make_alias_name(box_config)
     if lambda_exists(FUNCTION_NAME, alias): return
-    if len(box_config['requirements']) == 0:
+    if len(box_config.get('requirements', [])) == 0:
         package_contents = build_minimal_lambda_package()
+        if len(box_config.get('layers', [])) > 0:
+            eprint("Installing lambda layers (this will take a while)...")
         update_lambda_config(box_config)
         result = threadLocal.lambdaClient.update_function_code(
             FunctionName=FUNCTION_NAME,
@@ -445,6 +451,8 @@ def ensure_deps(box_config):
             'payload': json.dumps(payload)
         })
         eprint(result['output'])
+        if len(box_config.get('layers', [])) > 0:
+            eprint("Installing lambda layers (this will take a while)...")
         update_lambda_config(box_config)
         result = threadLocal.lambdaClient.update_function_code(
             FunctionName=FUNCTION_NAME,
