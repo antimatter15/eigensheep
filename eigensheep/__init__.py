@@ -454,6 +454,56 @@ def ensure_deps(box_config):
     eprint("Successfully deployed as '%s'." % alias)
 
 
+
+
+def encode_result(data, ctx = {}):
+    # TODO: automatically choose the highest pickle version which is compatible
+
+    data = base64.b64encode(zlib.compress(pickle.dumps(data, 2))).decode('utf-8')
+
+    result = {
+        "type": "b64+zlib+pickle",
+        "data": data
+    }
+
+    if len(data) > 5 * 1024 * 1024 and ctx.has_key("s3_bucket"):
+        import zipfile
+        import json
+        import boto3
+        s3 = boto3.resource('s3')
+
+        contents = json.dumps(result)
+        hashed = hashlib.md5(contents).hexdigest()
+        s3_key = 'chunks/' + hashed
+
+        s3.Bucket(ctx['s3_bucket']).put_object(
+            Key=s3_key, 
+            Body=contents)
+
+        result = {
+            "type": "s3",
+            "s3_key": s3_key,
+            "s3_bucket": ctx['s3_bucket']
+        }
+
+    return result
+
+
+def decode_result(data):
+    if data['type'] == 's3':
+        import io
+        import boto3
+        s3 = boto3.resource('s3')
+        pseudofile = io.BytesIO()
+        s3.Bucket(data['s3_bucket']).download_fileobj(data['s3_key'], pseudofile)
+
+        return decode_result(json.load(pseudofile))
+    elif data['type'] == 'b64+zlib+pickle':
+        return pickle.loads(zlib.decompress(base64.b64decode(data['data'])))
+
+        
+
+
 def invoke_thread(info):
     ensure_setup()
     result = threadLocal.lambdaClient.invoke(
@@ -472,10 +522,8 @@ def invoke_thread(info):
             print(line)
 
     if data is not None:
-        if 'zpickle64' in data:
-            return pickle.loads(zlib.decompress(base64.b64decode(data['zpickle64'])))
-        elif 'json' in data:
-            return data['json']
+        if 'result' in data:
+            return decode_result(data['result'])
         elif 'pretty' in data:
             return data['pretty']
         else:
@@ -509,17 +557,18 @@ def map(run_config, data = [0]):
         payload = {
             'type': 'RUN',
             'code': run_config['code'],
-            'index': i
+            'index': i,
+            's3_bucket': BUCKET_PREFIX + accountID,
         }
 
         if 'globals' in run_config:
             payload['globals'] = run_config['globals']
 
         if 'python' in box_config['runtime']:
-            # TODO: automatically choose the highest pickle version which is compatible
-            payload['zpickle64'] = base64.b64encode(zlib.compress(pickle.dumps(data, 2))).decode('utf-8')
-        else:
-            payload['json'] = data
+            payload['data'] = encode_result(data, {
+                's3_bucket': BUCKET_PREFIX + accountID,
+            })
+            
 
         tasks.append({
             'alias': run_config['alias'],

@@ -77,7 +77,7 @@ def build_lambda_package(dep_path):
 def lambda_run(event, context):
     globalenv = {
         'INDEX': event['index'],
-        'DATA': pickle.loads(zlib.decompress(base64.b64decode(event['zpickle64'])))
+        'DATA': decode_result(event['data'])
     }
     if 'globals' in event:
         for key in event['globals']:
@@ -87,25 +87,61 @@ def lambda_run(event, context):
     output = {
         'machine': os.environ['AWS_LAMBDA_LOG_STREAM_NAME'],
         'pretty': pprint.pformat(result, indent=4),
+        'result': encode_result(result, {
+            's3_bucket': event['s3_bucket']
+        })
     }
-
-    pickle_serializable, pickle_data = pickle_serialize(result)
-    if pickle_serializable:
-        output['zpickle64'] = pickle_data
 
     return output
 
 
-def pickle_serialize(out):
-    try:
-        data = base64.b64encode(zlib.compress(pickle.dumps(out, 2))).decode('utf-8')
-        if len(data) > 5 * 1024 * 1024:
-            # Don't use print() because this code needs to run on both py2k and py3k
-            sys.stdout.write('WARN: Pickle serialization exceeds 5MB, not returning result.\\n')
-            return (False, None)
-        return (True, data)
-    except Exception:
-        return (False, None)
+
+def encode_result(data, ctx = {}):
+    # TODO: automatically choose the highest pickle version which is compatible
+
+    data = base64.b64encode(zlib.compress(pickle.dumps(data, 2))).decode('utf-8')
+
+    result = {
+        "type": "b64+zlib+pickle",
+        "data": data
+    }
+
+    if len(data) > 5 * 1024 * 1024 and ctx.has_key("s3_bucket"):
+        import zipfile
+        import json
+        import boto3
+        s3 = boto3.resource('s3')
+
+        contents = json.dumps(result)
+        hashed = hashlib.md5(contents).hexdigest()
+        s3_key = 'chunks/' + hashed
+
+        s3.Bucket(ctx['s3_bucket']).put_object(
+            Key=s3_key, 
+            Body=contents)
+
+        result = {
+            "type": "s3",
+            "s3_key": s3_key,
+            "s3_bucket": ctx['s3_bucket']
+        }
+
+    return result
+
+
+def decode_result(data):
+    if data['type'] == 's3':
+        import io
+        import boto3
+        s3 = boto3.resource('s3')
+        pseudofile = io.BytesIO()
+        s3.Bucket(data['s3_bucket']).download_fileobj(data['s3_key'], pseudofile)
+
+        return decode_result(json.load(pseudofile))
+    elif data['type'] == 'b64+zlib+pickle':
+        return pickle.loads(zlib.decompress(base64.b64decode(data['data'])))
+
+        
         
 def my_exec(script, globals=None, locals=None):
     '''Execute a script and return the value of the last expression'''
