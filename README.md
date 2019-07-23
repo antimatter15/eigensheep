@@ -16,7 +16,7 @@ Open a Jupyter notebook with `jupyter notebook` and create a new Python 3 notebo
 
     import eigensheep
 
-Follow the on-screen instructions to configure AWS credentials. Eigensheep uses AWS CloudFormation so you only need to a few clicks to get started. 
+Follow the on-screen instructions to configure AWS credentials. Eigensheep uses AWS CloudFormation so you only need a few clicks to get started. 
 
 <img src="https://raw.githubusercontent.com/antimatter15/lambdu/master/images/setup.png" alt="eigensheep setup" width="500" />
 
