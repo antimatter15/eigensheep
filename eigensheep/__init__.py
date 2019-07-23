@@ -258,6 +258,19 @@ DATA + 42
 # In a different cell, call `eigensheep.map("do_stuff", [1, 2, 3, 4])`
 </pre>
 </details>
+
+
+<details>
+<summary>Example: Natural Language Processing with `spacy` Lambda layer</summary>
+<pre style="padding-left: 20px">%%eigensheep %%eigensheep --layer arn:aws:lambda:us-east-1:113088814899:layer:Klayers-python37-spacy:1
+import spacy
+nlp = spacy.load('/opt/en_core_web_sm-2.1.0')
+data = nlp('I met a traveller from an antique land')
+
+for token in data:
+    print(token.text, token.pos_, token.dep_)
+</pre>
+</details>
 """))
 
 
@@ -484,15 +497,17 @@ def encode_result(data, ctx = {}):
         import zipfile
         import json
         import boto3
-        s3 = boto3.resource('s3')
+        s3Client = boto3.client('s3')
 
         contents = json.dumps(result)
         hashed = hashlib.md5(contents).hexdigest()
         s3_key = 'chunks/' + hashed
 
-        s3.Bucket(ctx['s3_bucket']).put_object(
-            Key=s3_key, 
-            Body=contents)
+        s3Client.put_object(
+            Bucket=ctx['s3_bucket'],
+            Body=contents,
+            Key=s3_key
+        )
 
         result = {
             "type": "s3",
@@ -507,15 +522,31 @@ def decode_result(data):
     if data['type'] == 's3':
         import io
         import boto3
-        s3 = boto3.resource('s3')
-        pseudofile = io.BytesIO()
-        s3.Bucket(data['s3_bucket']).download_fileobj(data['s3_key'], pseudofile)
+        s3Client = boto3.client('s3')
+        res = s3Client.get_object(
+            Bucket=data['s3_bucket'],
+            Key=data['s3_key']
+        )
+        return decode_result(json.load(res['Body']))
 
-        return decode_result(json.load(pseudofile))
     elif data['type'] == 'b64+zlib+pickle':
         return pickle.loads(zlib.decompress(base64.b64decode(data['data'])))
 
-        
+def save(key, data):
+    ensure_setup()
+    threadLocal.s3Client.put_object(
+        Bucket=BUCKET_PREFIX + accountID,
+        Body=data,
+        Key=key
+    )
+
+def load(key):
+    ensure_setup()
+    res = threadLocal.s3Client.get_object(
+        Bucket=BUCKET_PREFIX + accountID,
+        Key=key
+    )
+    return res['Body'].read()
 
 
 def invoke_thread(info):
@@ -664,6 +695,10 @@ ipython.showtraceback = hide_traceback
 if not hasattr(ipython, 'original_run_cell_magic'):
     ipython.original_run_cell_magic = ipython.run_cell_magic
 ipython.run_cell_magic = run_cell_magic
+
+
+ipython.user_ns['SAVE'] = save
+ipython.user_ns['LOAD'] = load
 
 if setup_error:
     show_setup()
