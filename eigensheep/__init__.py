@@ -272,7 +272,9 @@ for token in data:
 </details>
 
 <br/>
-The following magic global variables are avaiable to code running on AWS Lambda through Eigensheep: <br/>
+The magic global variables <tt>INDEX</tt>, <tt>SAVE</tt>, and <tt>LOAD</tt> are exposed to code running on AWS Lambda through Eigensheep.
+<details>
+<summary>Global variable reference</summary>
 <ul>
 <li><tt>SAVE(key, data)</tt>: saves <tt>data</tt> to a file named <tt>key</tt> in the Eigensheep s3 bucket.<br/></li>
 <li><tt>LOAD(key)</tt>: returns the contents of the file named <tt>key</tt> in the Eigensheep s3 bucket.<br/></li>
@@ -280,6 +282,7 @@ The following magic global variables are avaiable to code running on AWS Lambda 
 This means each lambda runnning in parallel gets a different INDEX variable, which is useful for doing different jobs on each one.
 Check out the examples for inspiration.</li>
 </ul>
+</details>
 """))
 
 
