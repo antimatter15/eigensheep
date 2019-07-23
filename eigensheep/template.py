@@ -122,7 +122,7 @@ def encode_result(data, ctx={}):
 
     result = {"type": "b64+zlib+pickle", "data": data}
 
-    if len(data) > 5 * 1024 * 1024 and ctx.has_key("s3_bucket"):
+    if len(data) > 5 * 1024 * 1024 and "s3_bucket" in ctx:
         import zipfile
         import json
         import boto3
@@ -130,7 +130,7 @@ def encode_result(data, ctx={}):
         s3Client = boto3.client("s3")
 
         contents = json.dumps(result)
-        hashed = hashlib.md5(contents).hexdigest()
+        hashed = hashlib.sha256(contents.encode('utf-8')).hexdigest()
         s3_key = "chunks/" + hashed
 
         s3Client.put_object(Bucket=ctx["s3_bucket"], Body=contents, Key=s3_key)
