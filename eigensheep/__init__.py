@@ -135,7 +135,7 @@ def show_setup():
     <img src="https://raw.githubusercontent.com/antimatter15/eigensheep/master/images/logo.png" style="width: 300px; max-width: 100%"/>
     <b>It looks like you haven't set up Eigensheep yet</b>. 
 
-    You can get started with Eigensheep with just a few clicks by following these instructions:<br/>
+    You can get started with Eigensheep with just a few clicks by following these instructions (or follow <a href="https://www.youtube.com/watch?v=jdurk2DRdAs" target="_blank">our guided video walkthrough</a>):<br/>
     <ol>
         <li>Automatically generate Eigensheep resources using AWS CloudFormation with this button: <br/><a target="_blank" href="https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=eigensheep&amp;templateURL=""" + STACK_TEMPLATE_URL + """">
             <svg width="144" height="27" viewBox="0 0 144 27" xmlns="http://www.w3.org/2000/svg">
