@@ -37,7 +37,7 @@ MAX_CONCURRENCY = 1000
 
 
 BOOTSTRAP_CONFIG = {
-    'memory': 512,
+    'memory': 3008,
     'timeout': 300,
 }
 

@@ -75,9 +75,24 @@ def build_lambda_package(dep_path):
 
 
 def lambda_run(event, context):
+    def save(key, data):
+        import boto3
+        s3 = boto3.resource('s3')
+        s3.Bucket(event['s3_bucket']).put_object(Key=key, Body=data)
+
+    def load(key):
+        import boto3
+        s3 = boto3.resource('s3')
+        pseudofile = io.BytesIO()
+        s3.Bucket(event['s3_bucket']).download_fileobj(key, pseudofile)
+        return pseudofile.getvalue()
+
     globalenv = {
         'INDEX': event['index'],
-        'DATA': decode_result(event['data'])
+        'DATA': decode_result(event['data']),
+        'BUCKET': event['s3_bucket'],
+        'SAVE': save,
+        'LOAD': load
     }
     if 'globals' in event:
         for key in event['globals']:
