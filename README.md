@@ -10,13 +10,13 @@ Eigensheep lets you easily run cells in Jupyter Notebooks on AWS Lambda with mas
 
 Open up your Terminal and install `eigensheep` with `pip`
 
-    pip3 install eigensheep
+    pip install eigensheep
 
-Open a Jupyter notebook with `jupyter notebook` and create a new Python 3 notebook. Run the following code in a cell:
+Open a Jupyter notebook with `jupyter notebook` and create a new Python notebook. Eigensheep supports both Python 2 and Python 3. Run the following code in a cell:
 
     import eigensheep
 
-Follow the on-screen instructions to configure AWS credentials. Eigensheep uses AWS CloudFormation so you only need a few clicks to get started. 
+Follow the on-screen instructions to configure AWS credentials. AWS credentials will be saved to `~/.aws/config` under the `eigensheep` profile for subsequent invocations. Eigensheep uses AWS CloudFormation so you only need a few clicks to get started (see our [guided video walkthrough](https://www.youtube.com/watch?v=jdurk2DRdAs)). 
 
 <img src="https://raw.githubusercontent.com/antimatter15/lambdu/master/images/setup.png" alt="eigensheep setup" width="500" />
 
@@ -78,29 +78,32 @@ A: Yes. Although it's a bit more complicated to set up. You can use any AWS acce
 ## Usage
 
 ```
-usage: %%eigensheep [-h] [--memory MEMORY] [--timeout TIMEOUT] [--no_install]
-                    [--clean] [--rm] [--reinstall] [--runtime RUNTIME]
-                    [-n N] [--verbose] [--name NAME]
+usage: %%eigensheep [-h] [-n N] [--memory MEMORY] [--timeout TIMEOUT]
+                    [--runtime RUNTIME] [--layer LAYER] [--reinstall]
+                    [--no_install] [--clean] [--rm] [--name NAME] [--verbose]
                     [deps [deps ...]]
 
 Jupyter cell magic to invoke cell on AWS Lambda
 
 positional arguments:
-  deps               dependencies to be installed via PyPI
+  deps               dependencies to be installed via pip
 
 optional arguments:
   -h, --help         show this help message and exit
+  -n N               number of parallel lambdas to invoke
   --memory MEMORY    amount of memory in 64MB increments from 128 up to 3008
   --timeout TIMEOUT  lambda execution timeout in seconds up to 900 (15
                      minutes)
-  --no_install       do not install dependencies if not found
-  --clean        remove all deployed dependencies
-  --rm               remove a specific
-  --reinstall        uninstall and reinstall
-  --runtime RUNTIME  which runtime (python3.6, python2.7)
-  -n N               number of lambdas to invoke
+  --runtime RUNTIME  lambda runtime (python3.7, python2.7) defaults configured
+                     based on host environment
+  --layer LAYER      ARNs of lambda layers to include
+  --reinstall        regenerate lambda configuration and dependencies
+  --no_install       do not install dependencies if configration not found
+  --clean            clear all deployed lambda configurations
+  --rm               remove a specific lambda configuration
+  --name NAME        store the lambda for later use with `eigensheep.map` or
+                     `eigensheep.invoke`
   --verbose          show additional information from lambda invocation
-  --name NAME        name to store this lambda as
 ```
 
 
