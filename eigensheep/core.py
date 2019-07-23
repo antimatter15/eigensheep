@@ -3,6 +3,7 @@
 
 from __future__ import print_function
 from eigensheep.template import zipstr, encode_result, decode_result
+import eigensheep.template as template
 from IPython.core.magic import Magics, magics_class, line_cell_magic
 from IPython.core.display import display, HTML, Javascript
 from concurrent.futures import ThreadPoolExecutor
@@ -55,6 +56,12 @@ accountID = None
 known_aliases = set([])
 
 IS_PYTHON2 = sys.version_info[0] == 2
+
+def get_ctx():
+    ensure_setup()
+    return threadLocal
+
+template.get_ctx = get_ctx
 
 parser = argparse.ArgumentParser(
     prog="%%eigensheep", description="Jupyter cell magic to invoke cell on AWS Lambda"
@@ -120,7 +127,7 @@ def eprint(*args, **kwargs):
 
 
 def ensure_setup():
-    global executor, accountID, known_aliases
+    global executor, known_aliases, accountID
     if executor is None:
         executor = ThreadPoolExecutor(max_workers=MAX_CONCURRENCY)
 
@@ -134,9 +141,11 @@ def ensure_setup():
 
     # if we have already loaded the accountID then skip the rest
     if accountID:
+        threadLocal.bucket = BUCKET_PREFIX + accountID
         return
 
     accountID = session.client("sts").get_caller_identity().get("Account")
+    threadLocal.bucket = BUCKET_PREFIX + accountID
 
     # load all the known aliases
     aliases = threadLocal.lambdaClient.list_aliases(FunctionName=FUNCTION_NAME)[
@@ -145,7 +154,7 @@ def ensure_setup():
     known_aliases = set([ali["Name"] for ali in aliases])
 
     # check that the appropriate bucket exists
-    threadLocal.s3Client.head_bucket(Bucket=BUCKET_PREFIX + accountID)
+    threadLocal.s3Client.head_bucket(Bucket=threadLocal.bucket)
 
     # check that the lambda function exists
     if not lambda_exists(FUNCTION_NAME, None):
@@ -153,16 +162,16 @@ def ensure_setup():
 
 
 def lambda_exists(name, alias):
-    ensure_setup()
+    ctx = get_ctx()
     global known_aliases
     try:
         if alias:
-            threadLocal.lambdaClient.invoke(
+            ctx.lambdaClient.invoke(
                 FunctionName=name, InvocationType="DryRun", Qualifier=alias
             )
         else:
-            threadLocal.lambdaClient.invoke(FunctionName=name, InvocationType="DryRun")
-    except threadLocal.lambdaClient.exceptions.ResourceNotFoundException:
+            ctx.lambdaClient.invoke(FunctionName=name, InvocationType="DryRun")
+    except ctx.lambdaClient.exceptions.ResourceNotFoundException:
         if alias in known_aliases:
             known_aliases.remove(alias)
         return False
@@ -389,22 +398,22 @@ class EigensheepMagics(Magics):
         alias = make_alias_name(box_config)
 
         if args.rm or args.reinstall:
-            ensure_setup()
+            ctx = get_ctx()
             try:
-                ali = threadLocal.lambdaClient.get_alias(
+                ali = ctx.lambdaClient.get_alias(
                     FunctionName=FUNCTION_NAME, Name=alias
                 )
                 if alias in known_aliases:
                     known_aliases.remove(alias)
-                threadLocal.lambdaClient.delete_alias(
+                ctx.lambdaClient.delete_alias(
                     FunctionName=FUNCTION_NAME, Name=ali["Name"]
                 )
-                threadLocal.lambdaClient.delete_function(
+                ctx.lambdaClient.delete_function(
                     FunctionName=FUNCTION_NAME, Qualifier=ali["FunctionVersion"]
                 )
                 eprint('Deleted alias "%s".' % alias)
 
-            except threadLocal.lambdaClient.exceptions.ResourceNotFoundException:
+            except ctx.lambdaClient.exceptions.ResourceNotFoundException:
                 pass
 
             if args.rm:
@@ -481,23 +490,23 @@ def make_alias_name(box_config):
 
 def remove_all_aliases():
     global known_aliases
-    ensure_setup()
-    aliases = threadLocal.lambdaClient.list_aliases(FunctionName=FUNCTION_NAME)[
+    ctx = get_ctx()
+    aliases = ctx.lambdaClient.list_aliases(FunctionName=FUNCTION_NAME)[
         "Aliases"
     ]
-    versions = threadLocal.lambdaClient.list_versions_by_function(
+    versions = ctx.lambdaClient.list_versions_by_function(
         FunctionName=FUNCTION_NAME
     )["Versions"]
 
     for ali in aliases:
-        threadLocal.lambdaClient.delete_alias(
+        ctx.lambdaClient.delete_alias(
             FunctionName=FUNCTION_NAME, Name=ali["Name"]
         )
 
     for ver in versions:
         if ver["Version"] == "$LATEST":
             continue
-        threadLocal.lambdaClient.delete_function(
+        ctx.lambdaClient.delete_function(
             FunctionName=FUNCTION_NAME, Qualifier=ver["Version"]
         )
 
@@ -506,13 +515,13 @@ def remove_all_aliases():
 
 
 def create_or_update_alias(version, alias):
-    ensure_setup()
+    ctx = get_ctx()
     try:
-        return threadLocal.lambdaClient.update_alias(
+        return ctx.lambdaClient.update_alias(
             FunctionName=FUNCTION_NAME, Name=alias, FunctionVersion=version
         )
-    except threadLocal.lambdaClient.exceptions.ResourceNotFoundException:
-        return threadLocal.lambdaClient.create_alias(
+    except ctx.lambdaClient.exceptions.ResourceNotFoundException:
+        return ctx.lambdaClient.create_alias(
             FunctionName=FUNCTION_NAME, Name=alias, FunctionVersion=version
         )
 
@@ -526,13 +535,13 @@ def build_minimal_lambda_package():
 
 
 def update_lambda_config(box_config):
-    ensure_setup()
+    ctx = get_ctx()
     runtime = box_config["runtime"]
     memory = box_config["memory"]
     timeout = box_config["timeout"]
     handler = "main.lambda_handler"
 
-    threadLocal.lambdaClient.update_function_configuration(
+    ctx.lambdaClient.update_function_configuration(
         FunctionName=FUNCTION_NAME,
         Timeout=timeout,
         Runtime=runtime,
@@ -551,7 +560,7 @@ def ensure_deps(box_config):
         if len(box_config.get("layers", [])) > 0:
             eprint("Installing lambda layers (this will take a while)...")
         update_lambda_config(box_config)
-        result = threadLocal.lambdaClient.update_function_code(
+        result = ctx.lambdaClient.update_function_code(
             FunctionName=FUNCTION_NAME, ZipFile=package_contents, Publish=True
         )
     else:
@@ -562,7 +571,7 @@ def ensure_deps(box_config):
         payload = {
             "type": "BUILD",
             "requirements": box_config["requirements"],
-            "s3_bucket": BUCKET_PREFIX + accountID,
+            "s3_bucket": ctx.bucket,
             "s3_key": "lambda_package.zip",
         }
         result = invoke_thread(
@@ -572,7 +581,7 @@ def ensure_deps(box_config):
         if len(box_config.get("layers", [])) > 0:
             eprint("Installing lambda layers (this will take a while)...")
         update_lambda_config(box_config)
-        result = threadLocal.lambdaClient.update_function_code(
+        result = ctx.lambdaClient.update_function_code(
             FunctionName=FUNCTION_NAME,
             S3Bucket=payload["s3_bucket"],
             S3Key=payload["s3_key"],
@@ -588,8 +597,8 @@ def ensure_deps(box_config):
 
 
 def invoke_thread(info):
-    ensure_setup()
-    result = threadLocal.lambdaClient.invoke(
+    ctx = get_ctx()
+    result = ctx.lambdaClient.invoke(
         FunctionName=FUNCTION_NAME,
         InvocationType="RequestResponse",
         LogType="Tail",
@@ -695,20 +704,20 @@ def run_cell_magic(magic_name, line, cell):
 
 # Save to the designated Eigensheep S3 bucket. This is part of the public API. 
 def save(key, data):
-    ensure_setup()
-    threadLocal.s3Client.put_object(
-        Bucket=BUCKET_PREFIX + accountID, Body=data, Key=key
+    ctx = get_ctx()
+    ctx.s3Client.put_object(
+        Bucket=ctx.bucket, Body=data, Key=key
     )
 
 # Load from the designated Eigensheep S3 bucket. This is part of the public API. 
 def load(key):
-    ensure_setup()
-    res = threadLocal.s3Client.get_object(Bucket=BUCKET_PREFIX + accountID, Key=key)
+    ctx = get_ctx()
+    res = ctx.s3Client.get_object(Bucket=ctx.bucket, Key=key)
     return res["Body"].read()
 
 # This is part of the public API. 
 def map(run_config, data=[0]):
-    ensure_setup()
+    ctx = get_ctx()
 
     if isinstance(run_config, str):
         run_config = storedLambdas[run_config]
@@ -722,16 +731,14 @@ def map(run_config, data=[0]):
             "type": "RUN",
             "code": run_config["code"],
             "index": i,
-            "s3_bucket": BUCKET_PREFIX + accountID,
+            "s3_bucket": ctx.bucket,
         }
 
         if "globals" in run_config:
             payload["globals"] = run_config["globals"]
 
         if "python" in box_config["runtime"]:
-            payload["data"] = encode_result(
-                data, {"s3_bucket": BUCKET_PREFIX + accountID}
-            )
+            payload["data"] = encode_result(data)
 
         tasks.append(
             {
@@ -758,11 +765,11 @@ except NameError:
 
 setup_error = None
 try:
-    # ensure_setup() throws errors if anything is amiss
+    # ctx = get_ctx() throws errors if anything is amiss
     # for instance, if there is no AWS profile named "eigensheep"
     # or if there's a missing bucket, or a missing lambda function,
     # or anything smells like farts
-    ensure_setup()
+    ctx = get_ctx()
 except Exception as e:
     setup_error = e
 

@@ -2,21 +2,40 @@
 # -*- coding: utf-8 -*-
 
 import os, sys, ast, pprint, pickle, base64, zlib, hashlib
-import threading
 
 # TODO: consider using https://github.com/ipython/ipython/blob/
 #                      master/IPython/core/interactiveshell.py
 # Based on: https://stackoverflow.com/a/47130538
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "python_lambda_deps"))
-threadLocal = threading.local()
 
-def ensure_s3():
-    if not hasattr(threadLocal, "s3Client"):
-        import boto3
-        threadLocal.s3Client = boto3.client("s3")
+
+def get_ctx():
+    raise NotImplementedError()
+
+def save(key, data):
+    ctx = get_ctx()
+    ctx.s3Client.put_object(Bucket=ctx.bucket, Body=data, Key=key)
+
+
+def load(key):
+    ctx = get_ctx()
+    res = ctx.s3Client.get_object(Bucket=ctx.bucket, Key=key)
+    return res["Body"].read()
+
 
 def lambda_handler(event, context):
+    global get_ctx
+    def get_ctx_impl():
+        import boto3
+        class Context: pass
+        ctx = Context()
+        
+        ctx.s3Client = boto3.client("s3")
+        ctx.bucket = event['s3_bucket']
+        return ctx
+    get_ctx = get_ctx_impl
+
     if event["type"] == "RUN":
         return lambda_run(event, context)
     elif event["type"] == "BUILD":
@@ -26,7 +45,7 @@ def lambda_handler(event, context):
 def lambda_build(event, context):
     import subprocess
     import shutil
-    ensure_s3()
+    aws = get_aws()
 
     os.chdir("/tmp")
     path = "/tmp/deps"
@@ -48,8 +67,7 @@ def lambda_build(event, context):
     output = proc.communicate()[0]
     package = build_lambda_package(path)
 
-    threadLocal.s3Client.put_object(Bucket=event["s3_bucket"], Body=package, Key=event["s3_key"])
-
+    save(event['s3_key'], package)
     return {"output": output.decode("utf-8")}
 
 
@@ -87,15 +105,6 @@ def build_lambda_package(dep_path):
 
 
 def lambda_run(event, context):
-    def save(key, data):
-        ensure_s3()
-        threadLocal.s3Client.put_object(Bucket=event["s3_bucket"], Body=data, Key=key)
-
-    def load(key):
-        ensure_s3()
-        res = threadLocal.s3Client.get_object(Bucket=event["s3_bucket"], Key=key)
-        return res["Body"].read()
-
     globalenv = {
         "INDEX": event["index"],
         "DATA": decode_result(event["data"]),
@@ -110,31 +119,30 @@ def lambda_run(event, context):
 
     output = {
         "machine": os.environ["AWS_LAMBDA_LOG_STREAM_NAME"],
-        "result": encode_result(result, {"s3_bucket": event["s3_bucket"]}),
+        "result": encode_result(result),
     }
 
     return output
 
 
-def encode_result(data, ctx={}):
+def encode_result(data):
     # TODO: automatically choose the highest pickle version which is compatible
 
     data = base64.b64encode(zlib.compress(pickle.dumps(data, 2))).decode("utf-8")
 
     result = {"type": "b64+zlib+pickle", "data": data}
 
-    if len(data) > 5 * 1024 * 1024 and "s3_bucket" in ctx:
+    if len(data) > 5 * 1024 * 1024:
         import zipfile
         import json
-        ensure_s3()
 
         contents = json.dumps(result)
         hashed = hashlib.sha256(contents.encode('utf-8')).hexdigest()
         s3_key = "chunks/" + hashed
 
-        threadLocal.s3Client.put_object(Bucket=ctx["s3_bucket"], Body=contents, Key=s3_key)
+        save(s3_key, contents)
 
-        result = {"type": "s3", "s3_key": s3_key, "s3_bucket": ctx["s3_bucket"]}
+        result = {"type": "s3", "s3_key": s3_key }
 
     return result
 
@@ -142,9 +150,7 @@ def encode_result(data, ctx={}):
 def decode_result(data):
     if data["type"] == "s3":
         import io
-        ensure_s3()
-        res = threadLocal.s3Client.get_object(Bucket=data["s3_bucket"], Key=data["s3_key"])
-        return decode_result(json.load(res["Body"]))
+        return decode_result(json.loads(load(data['s3_key'])))
 
     elif data["type"] == "b64+zlib+pickle":
         return pickle.loads(zlib.decompress(base64.b64decode(data["data"])))
