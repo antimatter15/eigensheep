@@ -48,9 +48,7 @@ def lambda_build(event, context):
     output = proc.communicate()[0]
     package = build_lambda_package(path)
 
-    # s3.Bucket(event["s3_bucket"]).put_object(Key=event["s3_key"], Body=package)
-
-    threadLocal.s3Client.put_
+    threadLocal.s3Client.put_object(Bucket=event["s3_bucket"], Body=package, Key=event["s3_key"])
 
     return {"output": output.decode("utf-8")}
 
