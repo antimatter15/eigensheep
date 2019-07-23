@@ -49,6 +49,8 @@ storedLambdas = {}
 accountID = None
 known_aliases = set([])
 
+IS_PYTHON2 = sys.version_info[0] == 2
+
 parser = argparse.ArgumentParser(
     prog='%%eigensheep', 
     description='Jupyter cell magic to invoke cell on AWS Lambda')
@@ -67,7 +69,7 @@ parser.add_argument('--rm', action='store_true',
                     help='remove a specific')
 parser.add_argument('--reinstall', action='store_true',
                     help='uninstall and reinstall')
-parser.add_argument('--runtime', type=str, default='python2.7' if sys.version_info[0] == 2 else 'python3.7',
+parser.add_argument('--runtime', type=str, default='python2.7' if IS_PYTHON2 else 'python3.7',
                     help='which runtime (python3.7, python2.7)')
 parser.add_argument('-n', type=int, default=1,
                     help='number of lambdas to invoke')
