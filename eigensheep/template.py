@@ -2,13 +2,19 @@
 # -*- coding: utf-8 -*-
 
 import os, sys, ast, pprint, pickle, base64, zlib, hashlib
+import threading
 
 # TODO: consider using https://github.com/ipython/ipython/blob/
 #                      master/IPython/core/interactiveshell.py
 # Based on: https://stackoverflow.com/a/47130538
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "python_lambda_deps"))
+threadLocal = threading.local()
 
+def ensure_s3():
+    if not hasattr(threadLocal, "s3Client"):
+        import boto3
+        threadLocal.s3Client = boto3.client("s3")
 
 def lambda_handler(event, context):
     if event["type"] == "RUN":
@@ -19,10 +25,8 @@ def lambda_handler(event, context):
 
 def lambda_build(event, context):
     import subprocess
-    import boto3
     import shutil
-
-    s3 = boto3.resource("s3")
+    ensure_s3()
 
     os.chdir("/tmp")
     path = "/tmp/deps"
@@ -44,7 +48,9 @@ def lambda_build(event, context):
     output = proc.communicate()[0]
     package = build_lambda_package(path)
 
-    s3.Bucket(event["s3_bucket"]).put_object(Key=event["s3_key"], Body=package)
+    # s3.Bucket(event["s3_bucket"]).put_object(Key=event["s3_key"], Body=package)
+
+    threadLocal.s3Client.put_
 
     return {"output": output.decode("utf-8")}
 
@@ -84,19 +90,13 @@ def build_lambda_package(dep_path):
 
 def lambda_run(event, context):
     def save(key, data):
-        import boto3
-
-        s3 = boto3.resource("s3")
-        s3.Bucket(event["s3_bucket"]).put_object(Key=key, Body=data)
+        ensure_s3()
+        threadLocal.s3Client.put_object(Bucket=event["s3_bucket"], Body=data, Key=key)
 
     def load(key):
-        import boto3
-        import io
-
-        s3 = boto3.resource("s3")
-        pseudofile = io.BytesIO()
-        s3.Bucket(event["s3_bucket"]).download_fileobj(key, pseudofile)
-        return pseudofile.getvalue()
+        ensure_s3()
+        res = threadLocal.s3Client.get_object(Bucket=event["s3_bucket"], Key=key)
+        return res["Body"].read()
 
     globalenv = {
         "INDEX": event["index"],
@@ -128,15 +128,13 @@ def encode_result(data, ctx={}):
     if len(data) > 5 * 1024 * 1024 and "s3_bucket" in ctx:
         import zipfile
         import json
-        import boto3
-
-        s3Client = boto3.client("s3")
+        ensure_s3()
 
         contents = json.dumps(result)
         hashed = hashlib.sha256(contents.encode('utf-8')).hexdigest()
         s3_key = "chunks/" + hashed
 
-        s3Client.put_object(Bucket=ctx["s3_bucket"], Body=contents, Key=s3_key)
+        threadLocal.s3Client.put_object(Bucket=ctx["s3_bucket"], Body=contents, Key=s3_key)
 
         result = {"type": "s3", "s3_key": s3_key, "s3_bucket": ctx["s3_bucket"]}
 
@@ -146,10 +144,8 @@ def encode_result(data, ctx={}):
 def decode_result(data):
     if data["type"] == "s3":
         import io
-        import boto3
-
-        s3Client = boto3.client("s3")
-        res = s3Client.get_object(Bucket=data["s3_bucket"], Key=data["s3_key"])
+        ensure_s3()
+        res = threadLocal.s3Client.get_object(Bucket=data["s3_bucket"], Key=data["s3_key"])
         return decode_result(json.load(res["Body"]))
 
     elif data["type"] == "b64+zlib+pickle":
