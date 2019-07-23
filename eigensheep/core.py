@@ -24,8 +24,11 @@ import json
 import ast
 import re
 
-
+# The name of the profile of ~/.aws/config to save/load the eigensheep configuration
+# This allows the AWS CLI to access eigensheep stuff by passing a --profile argument
 AWS_PROFILE = "eigensheep"
+
+
 FUNCTION_NAME = "EigensheepLambda"
 BUCKET_PREFIX = "eigensheep-"
 STACK_TEMPLATE_URL = "https://eigensheep.s3.amazonaws.com/template.yaml"

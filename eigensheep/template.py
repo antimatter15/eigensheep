@@ -88,6 +88,7 @@ def lambda_run(event, context):
 
     def load(key):
         import boto3
+        import io
 
         s3 = boto3.resource("s3")
         pseudofile = io.BytesIO()
@@ -108,7 +109,6 @@ def lambda_run(event, context):
 
     output = {
         "machine": os.environ["AWS_LAMBDA_LOG_STREAM_NAME"],
-        "pretty": pprint.pformat(result, indent=4),
         "result": encode_result(result, {"s3_bucket": event["s3_bucket"]}),
     }
 
