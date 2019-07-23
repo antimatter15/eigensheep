@@ -23,12 +23,14 @@ import json
 import ast
 import re
 
-AWS_PROFILE = 'eigensheep'
-FUNCTION_NAME = 'EigensheepLambda'
-BUCKET_PREFIX = 'eigensheep-'
-STACK_TEMPLATE_URL = 'https://eigensheep.s3.amazonaws.com/template.yaml'
-GITHUB_URL = 'https://github.com/antimatter15/eigensheep'
-LAMBDA_TEMPLATE_PYTHON = open(os.path.join(os.path.dirname(__file__), 'template.py'), 'r').read()
+AWS_PROFILE = "eigensheep"
+FUNCTION_NAME = "EigensheepLambda"
+BUCKET_PREFIX = "eigensheep-"
+STACK_TEMPLATE_URL = "https://eigensheep.s3.amazonaws.com/template.yaml"
+GITHUB_URL = "https://github.com/antimatter15/eigensheep"
+LAMBDA_TEMPLATE_PYTHON = open(
+    os.path.join(os.path.dirname(__file__), "template.py"), "r"
+).read()
 
 
 DEFAULT_MEMORY = 512
@@ -36,10 +38,7 @@ DEFAULT_TIMEOUT = 60
 MAX_CONCURRENCY = 1000
 
 
-BOOTSTRAP_CONFIG = {
-    'memory': 3008,
-    'timeout': 300,
-}
+BOOTSTRAP_CONFIG = {"memory": 3008, "timeout": 300}
 
 threadLocal = threading.local()
 executor = None
@@ -50,33 +49,63 @@ known_aliases = set([])
 IS_PYTHON2 = sys.version_info[0] == 2
 
 parser = argparse.ArgumentParser(
-    prog='%%eigensheep', 
-    description='Jupyter cell magic to invoke cell on AWS Lambda')
+    prog="%%eigensheep", description="Jupyter cell magic to invoke cell on AWS Lambda"
+)
 
-parser.add_argument('deps', type=str, nargs='*',
-                    help='dependencies to be installed via pip')
-parser.add_argument('-n', type=int, default=1,
-                    help='number of parallel lambdas to invoke')
-parser.add_argument('--memory', default=DEFAULT_MEMORY, type=int,
-                    help='amount of memory in 64MB increments from 128 up to 3008')
-parser.add_argument('--timeout', default=DEFAULT_TIMEOUT, type=int,
-                    help='lambda execution timeout in seconds up to 900 (15 minutes)')
-parser.add_argument('--runtime', type=str, default='python2.7' if IS_PYTHON2 else 'python3.7',
-                    help='lambda runtime (python3.7, python2.7) defaults configured based on host environment')
-parser.add_argument('--layer', action='append', default=[],
-                    help='ARNs of lambda layers to include')
-parser.add_argument('--reinstall', action='store_true',
-                    help='regenerate lambda configuration and dependencies')
-parser.add_argument('--no_install', action='store_true',
-                    help='do not install dependencies if configration not found')
-parser.add_argument('--clean', action='store_true',
-                    help='clear all deployed lambda configurations')
-parser.add_argument('--rm', action='store_true',
-                    help='remove a specific lambda configuration')
-parser.add_argument('--name', type=str,
-                    help='store the lambda for later use with `eigensheep.map` or `eigensheep.invoke`')
-parser.add_argument('--verbose', action='store_true',
-                    help='show additional information from lambda invocation')
+parser.add_argument(
+    "deps", type=str, nargs="*", help="dependencies to be installed via pip"
+)
+parser.add_argument(
+    "-n", type=int, default=1, help="number of parallel lambdas to invoke"
+)
+parser.add_argument(
+    "--memory",
+    default=DEFAULT_MEMORY,
+    type=int,
+    help="amount of memory in 64MB increments from 128 up to 3008",
+)
+parser.add_argument(
+    "--timeout",
+    default=DEFAULT_TIMEOUT,
+    type=int,
+    help="lambda execution timeout in seconds up to 900 (15 minutes)",
+)
+parser.add_argument(
+    "--runtime",
+    type=str,
+    default="python2.7" if IS_PYTHON2 else "python3.7",
+    help="lambda runtime (python3.7, python2.7) defaults configured based on host environment",
+)
+parser.add_argument(
+    "--layer", action="append", default=[], help="ARNs of lambda layers to include"
+)
+parser.add_argument(
+    "--reinstall",
+    action="store_true",
+    help="regenerate lambda configuration and dependencies",
+)
+parser.add_argument(
+    "--no_install",
+    action="store_true",
+    help="do not install dependencies if configration not found",
+)
+parser.add_argument(
+    "--clean", action="store_true", help="clear all deployed lambda configurations"
+)
+parser.add_argument(
+    "--rm", action="store_true", help="remove a specific lambda configuration"
+)
+parser.add_argument(
+    "--name",
+    type=str,
+    help="store the lambda for later use with `eigensheep.map` or `eigensheep.invoke`",
+)
+parser.add_argument(
+    "--verbose",
+    action="store_true",
+    help="show additional information from lambda invocation",
+)
+
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -88,34 +117,41 @@ def ensure_setup():
         executor = ThreadPoolExecutor(max_workers=MAX_CONCURRENCY)
 
     # if we have already defined the lambda client skip the rest
-    if hasattr(threadLocal, 'lambdaClient'): return
+    if hasattr(threadLocal, "lambdaClient"):
+        return
 
     session = boto3.session.Session(profile_name=AWS_PROFILE)
-    threadLocal.lambdaClient = session.client('lambda')
-    threadLocal.s3Client = session.client('s3')
+    threadLocal.lambdaClient = session.client("lambda")
+    threadLocal.s3Client = session.client("s3")
 
     # if we have already loaded the accountID then skip the rest
-    if accountID: return
+    if accountID:
+        return
 
-    accountID = session.client('sts').get_caller_identity().get('Account')
+    accountID = session.client("sts").get_caller_identity().get("Account")
 
     # load all the known aliases
-    aliases = threadLocal.lambdaClient.list_aliases(FunctionName=FUNCTION_NAME)['Aliases']
-    known_aliases = set([ ali['Name'] for ali in aliases ])
+    aliases = threadLocal.lambdaClient.list_aliases(FunctionName=FUNCTION_NAME)[
+        "Aliases"
+    ]
+    known_aliases = set([ali["Name"] for ali in aliases])
 
     # check that the appropriate bucket exists
     threadLocal.s3Client.head_bucket(Bucket=BUCKET_PREFIX + accountID)
 
     # check that the lambda function exists
     if not lambda_exists(FUNCTION_NAME, None):
-        raise Exception("No lambda exists with name '%s'."  % FUNCTION_NAME)
+        raise Exception("No lambda exists with name '%s'." % FUNCTION_NAME)
+
 
 def lambda_exists(name, alias):
     ensure_setup()
     global known_aliases
     try:
         if alias:
-            threadLocal.lambdaClient.invoke(FunctionName=name, InvocationType="DryRun", Qualifier=alias)
+            threadLocal.lambdaClient.invoke(
+                FunctionName=name, InvocationType="DryRun", Qualifier=alias
+            )
         else:
             threadLocal.lambdaClient.invoke(FunctionName=name, InvocationType="DryRun")
     except threadLocal.lambdaClient.exceptions.ResourceNotFoundException:
@@ -128,16 +164,24 @@ def lambda_exists(name, alias):
 
 def show_setup():
     access_key = widgets.Text(description="Access Key: ", placeholder="AKIAJXSDOIF")
-    secret_key = widgets.Text(description="Secret Key: ", placeholder="1/Wi3ns8e3nKLSeiwnMn")
-    region = widgets.Text(description="Region: ", placeholder="us-east-1", value="us-east-1")
+    secret_key = widgets.Text(
+        description="Secret Key: ", placeholder="1/Wi3ns8e3nKLSeiwnMn"
+    )
+    region = widgets.Text(
+        description="Region: ", placeholder="us-east-1", value="us-east-1"
+    )
 
-    display(HTML("""
+    display(
+        HTML(
+            """
     <img src="https://raw.githubusercontent.com/antimatter15/eigensheep/master/images/logo.png" style="width: 300px; max-width: 100%"/>
     <b>It looks like you haven't set up Eigensheep yet</b>. 
 
     You can get started with Eigensheep with just a few clicks by following these instructions (or follow <a href="https://www.youtube.com/watch?v=jdurk2DRdAs" target="_blank">our guided video walkthrough</a>):<br/>
     <ol>
-        <li>Automatically generate Eigensheep resources using AWS CloudFormation with this button: <br/><a target="_blank" href="https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=eigensheep&amp;templateURL=""" + STACK_TEMPLATE_URL + """">
+        <li>Automatically generate Eigensheep resources using AWS CloudFormation with this button: <br/><a target="_blank" href="https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=eigensheep&amp;templateURL="""
+            + STACK_TEMPLATE_URL
+            + """">
             <svg width="144" height="27" viewBox="0 0 144 27" xmlns="http://www.w3.org/2000/svg">
                 <title>Launch Stack</title>
                 <defs>
@@ -181,7 +225,9 @@ def show_setup():
             </i>
         </li>
     </ol>
-"""))
+"""
+        )
+    )
 
     button = widgets.Button(description="Submit")
 
@@ -207,23 +253,27 @@ def show_setup():
 
         config = configparser.ConfigParser()
         config.read(expanduser("~/.aws/config"))
-        config.set('profile eigensheep', 'region', region.value)
-        config.set('profile eigensheep', 'aws_access_key_id', access_key.value)
-        config.set('profile eigensheep', 'aws_secret_access_key', secret_key.value)
+        config.set("profile eigensheep", "region", region.value)
+        config.set("profile eigensheep", "aws_access_key_id", access_key.value)
+        config.set("profile eigensheep", "aws_secret_access_key", secret_key.value)
 
-        with open(expanduser("~/.aws/config"), 'w') as configfile:
+        with open(expanduser("~/.aws/config"), "w") as configfile:
             config.write(configfile)
 
         # based on https://stackoverflow.com/a/39639111
         # re-execute the cell
-        display(Javascript("""
+        display(
+            Javascript(
+                """
             var output_area = this;
             var cell_element = output_area.element.parents('.cell');
             var cell_idx = Jupyter.notebook.get_cell_elements().index(cell_element);
             var cell = Jupyter.notebook.get_cell(cell_idx);
 
             cell.execute()
-            """))
+            """
+            )
+        )
 
     button.on_click(handle_submit)
     access_key.on_submit(handle_submit)
@@ -231,9 +281,13 @@ def show_setup():
 
 
 def show_welcome():
-    display(HTML("""
+    display(
+        HTML(
+            """
 <p>
-Prefix any cell with <code>%%eigensheep</code> to run it in AWS Lambda. <a target="_blank" href='""" + GITHUB_URL + """'>Learn more...</a>
+Prefix any cell with <code>%%eigensheep</code> to run it in AWS Lambda. <a target="_blank" href='"""
+            + GITHUB_URL
+            + """'>Learn more...</a>
 </p>
 <br />
 <details>
@@ -287,7 +341,9 @@ These APIs are available from both the parent notebook and the Lambda environmen
 <li><tt>LOAD(key)</tt>: returns the contents of the file named <tt>key</tt> in the Eigensheep S3 bucket.<br/></li>
 </ul>
 </details>
-"""))
+"""
+        )
+    )
 
 
 @magics_class
@@ -299,7 +355,7 @@ class EigensheepMagics(Magics):
     @line_cell_magic
     def eigensheep(self, line, cell=None):
         try:
-            args = parser.parse_args(line.split(' '))
+            args = parser.parse_args(line.split(" "))
         except SystemExit:
             return
 
@@ -308,16 +364,18 @@ class EigensheepMagics(Magics):
             return
 
         if not cell:
-            raise UsageError("Did you accidentally type %eigensheep instead of %%eigensheep?")
-        
-        deps = [ x for x in args.deps if x ]
+            raise UsageError(
+                "Did you accidentally type %eigensheep instead of %%eigensheep?"
+            )
+
+        deps = [x for x in args.deps if x]
 
         box_config = {
-            'requirements': deps,
-            'memory': args.memory,
-            'timeout': args.timeout,
-            'runtime': args.runtime,
-            'layers': args.layer
+            "requirements": deps,
+            "memory": args.memory,
+            "timeout": args.timeout,
+            "runtime": args.runtime,
+            "layers": args.layer,
         }
 
         alias = make_alias_name(box_config)
@@ -325,19 +383,30 @@ class EigensheepMagics(Magics):
         if args.rm or args.reinstall:
             ensure_setup()
             try:
-                ali = threadLocal.lambdaClient.get_alias(FunctionName=FUNCTION_NAME, Name=alias)
-                if alias in known_aliases: known_aliases.remove(alias)
-                threadLocal.lambdaClient.delete_alias(FunctionName=FUNCTION_NAME, Name=ali['Name'])
-                threadLocal.lambdaClient.delete_function(FunctionName=FUNCTION_NAME, 
-                    Qualifier=ali['FunctionVersion'])
+                ali = threadLocal.lambdaClient.get_alias(
+                    FunctionName=FUNCTION_NAME, Name=alias
+                )
+                if alias in known_aliases:
+                    known_aliases.remove(alias)
+                threadLocal.lambdaClient.delete_alias(
+                    FunctionName=FUNCTION_NAME, Name=ali["Name"]
+                )
+                threadLocal.lambdaClient.delete_function(
+                    FunctionName=FUNCTION_NAME, Qualifier=ali["FunctionVersion"]
+                )
                 eprint('Deleted alias "%s".' % alias)
 
             except threadLocal.lambdaClient.exceptions.ResourceNotFoundException:
                 pass
-            
-            if args.rm: return
 
-        if not args.no_install and alias not in known_aliases and not lambda_exists(FUNCTION_NAME, alias):
+            if args.rm:
+                return
+
+        if (
+            not args.no_install
+            and alias not in known_aliases
+            and not lambda_exists(FUNCTION_NAME, alias)
+        ):
             ensure_deps(box_config)
 
         try:
@@ -358,16 +427,19 @@ class EigensheepMagics(Magics):
                 pass
 
         run_config = {
-            'box': box_config,
-            'alias': alias,
-            'code': cell,
-            'verbose': args.verbose,
-            'globals': exported_globals
+            "box": box_config,
+            "alias": alias,
+            "code": cell,
+            "verbose": args.verbose,
+            "globals": exported_globals,
         }
 
         if args.name:
             storedLambdas[args.name] = run_config
-            eprint('Invoke this stored cell with `eigensheep.invoke("%s")` or `eigensheep.map("%s", [1, 2, ...])`' % (args.name, args.name))
+            eprint(
+                'Invoke this stored cell with `eigensheep.invoke("%s")` or `eigensheep.map("%s", [1, 2, ...])`'
+                % (args.name, args.name)
+            )
             return None
 
         if args.n > 1:
@@ -376,36 +448,50 @@ class EigensheepMagics(Magics):
             return invoke(run_config)
 
 
-
 def make_alias_name(box_config):
-    requirements = sorted([x.lower() for x in set(box_config.get('requirements', []))])
-    h = hashlib.sha256(b'1')
-    h.update(LAMBDA_TEMPLATE_PYTHON.encode('utf-8'))
-    for req in requirements: h.update(req.encode('utf-8'))
-    for req in box_config.get('layers', []): h.update(req.encode('utf-8'))
-    reqs = '_'.join(re.sub('[^\\w]', '', x) for x in requirements)[:50]
+    requirements = sorted([x.lower() for x in set(box_config.get("requirements", []))])
+    h = hashlib.sha256(b"1")
+    h.update(LAMBDA_TEMPLATE_PYTHON.encode("utf-8"))
+    for req in requirements:
+        h.update(req.encode("utf-8"))
+    for req in box_config.get("layers", []):
+        h.update(req.encode("utf-8"))
+    reqs = "_".join(re.sub("[^\\w]", "", x) for x in requirements)[:50]
 
-    if reqs == '': reqs = 'clean'
-    return ('%s-%dM-%ds-%s-' % (
-        box_config['runtime'].replace('.', ''), 
-        box_config['memory'], 
-        box_config['timeout'], 
-        h.hexdigest()[:5])) + reqs    
+    if reqs == "":
+        reqs = "clean"
+    return (
+        "%s-%dM-%ds-%s-"
+        % (
+            box_config["runtime"].replace(".", ""),
+            box_config["memory"],
+            box_config["timeout"],
+            h.hexdigest()[:5],
+        )
+    ) + reqs
 
 
 def remove_all_aliases():
     global known_aliases
     ensure_setup()
-    aliases = threadLocal.lambdaClient.list_aliases(FunctionName=FUNCTION_NAME)['Aliases']
+    aliases = threadLocal.lambdaClient.list_aliases(FunctionName=FUNCTION_NAME)[
+        "Aliases"
+    ]
     versions = threadLocal.lambdaClient.list_versions_by_function(
-        FunctionName=FUNCTION_NAME)['Versions']
+        FunctionName=FUNCTION_NAME
+    )["Versions"]
 
     for ali in aliases:
-        threadLocal.lambdaClient.delete_alias(FunctionName=FUNCTION_NAME, Name=ali['Name'])
+        threadLocal.lambdaClient.delete_alias(
+            FunctionName=FUNCTION_NAME, Name=ali["Name"]
+        )
 
     for ver in versions:
-        if ver['Version'] == '$LATEST': continue
-        threadLocal.lambdaClient.delete_function(FunctionName=FUNCTION_NAME, Qualifier=ver['Version'])
+        if ver["Version"] == "$LATEST":
+            continue
+        threadLocal.lambdaClient.delete_function(
+            FunctionName=FUNCTION_NAME, Qualifier=ver["Version"]
+        )
 
     known_aliases = set([])
     eprint("Removed %d aliases, and %d versions" % (len(aliases), len(versions) - 1))
@@ -415,30 +501,34 @@ def create_or_update_alias(version, alias):
     ensure_setup()
     try:
         return threadLocal.lambdaClient.update_alias(
-            FunctionName=FUNCTION_NAME, Name=alias, FunctionVersion=version)
-    except threadLocal.lambdaClient.exceptions.ResourceNotFoundException:    
+            FunctionName=FUNCTION_NAME, Name=alias, FunctionVersion=version
+        )
+    except threadLocal.lambdaClient.exceptions.ResourceNotFoundException:
         return threadLocal.lambdaClient.create_alias(
-            FunctionName=FUNCTION_NAME, Name=alias, FunctionVersion=version)
-    
-def zipstr(ziph, path, contents):    
+            FunctionName=FUNCTION_NAME, Name=alias, FunctionVersion=version
+        )
+
+
+def zipstr(ziph, path, contents):
     info = zipfile.ZipInfo(path)
-    info.external_attr = 0o555 << 16 
+    info.external_attr = 0o555 << 16
     ziph.writestr(info, contents)
+
 
 def build_minimal_lambda_package():
     pseudofile = io.BytesIO()
-    zipf = zipfile.ZipFile(pseudofile, 'w', zipfile.ZIP_DEFLATED)
-    zipstr(zipf, 'main.py', LAMBDA_TEMPLATE_PYTHON)
+    zipf = zipfile.ZipFile(pseudofile, "w", zipfile.ZIP_DEFLATED)
+    zipstr(zipf, "main.py", LAMBDA_TEMPLATE_PYTHON)
     zipf.close()
     return pseudofile.getvalue()
 
 
 def update_lambda_config(box_config):
     ensure_setup()
-    runtime = box_config['runtime']
-    memory = box_config['memory']
-    timeout = box_config['timeout']
-    handler = 'main.lambda_handler'
+    runtime = box_config["runtime"]
+    memory = box_config["memory"]
+    timeout = box_config["timeout"]
+    handler = "main.lambda_handler"
 
     threadLocal.lambdaClient.update_function_configuration(
         FunctionName=FUNCTION_NAME,
@@ -446,196 +536,199 @@ def update_lambda_config(box_config):
         Runtime=runtime,
         MemorySize=memory,
         Handler=handler,
-        Layers=box_config.get('layers', [])
+        Layers=box_config.get("layers", []),
     )
 
 
 def ensure_deps(box_config):
     alias = make_alias_name(box_config)
-    if lambda_exists(FUNCTION_NAME, alias): return
-    if len(box_config.get('requirements', [])) == 0:
+    if lambda_exists(FUNCTION_NAME, alias):
+        return
+    if len(box_config.get("requirements", [])) == 0:
         package_contents = build_minimal_lambda_package()
-        if len(box_config.get('layers', [])) > 0:
+        if len(box_config.get("layers", [])) > 0:
             eprint("Installing lambda layers (this will take a while)...")
         update_lambda_config(box_config)
         result = threadLocal.lambdaClient.update_function_code(
-            FunctionName=FUNCTION_NAME,
-            ZipFile=package_contents,
-            Publish=True
+            FunctionName=FUNCTION_NAME, ZipFile=package_contents, Publish=True
         )
     else:
-        BOOTSTRAP_CONFIG['runtime'] = box_config['runtime']
+        BOOTSTRAP_CONFIG["runtime"] = box_config["runtime"]
         bootstrap_alias = make_alias_name(BOOTSTRAP_CONFIG)
         ensure_deps(BOOTSTRAP_CONFIG)
         eprint("Installing dependencies (this will take a while)...")
         payload = {
-            'type': 'BUILD',
-            'requirements': box_config['requirements'],
-            's3_bucket': BUCKET_PREFIX + accountID,
-            's3_key': 'lambda_package.zip'
+            "type": "BUILD",
+            "requirements": box_config["requirements"],
+            "s3_bucket": BUCKET_PREFIX + accountID,
+            "s3_key": "lambda_package.zip",
         }
-        result = invoke_thread({
-            'alias': bootstrap_alias,
-            'verbose': False,
-            'payload': json.dumps(payload)
-        })
-        eprint(result['output'])
-        if len(box_config.get('layers', [])) > 0:
+        result = invoke_thread(
+            {"alias": bootstrap_alias, "verbose": False, "payload": json.dumps(payload)}
+        )
+        eprint(result["output"])
+        if len(box_config.get("layers", [])) > 0:
             eprint("Installing lambda layers (this will take a while)...")
         update_lambda_config(box_config)
         result = threadLocal.lambdaClient.update_function_code(
             FunctionName=FUNCTION_NAME,
-            S3Bucket=payload['s3_bucket'],
-            S3Key=payload['s3_key'],
-            Publish=True
+            S3Bucket=payload["s3_bucket"],
+            S3Key=payload["s3_key"],
+            Publish=True,
         )
         # TODO: clean up the S3 package afterwards
         # This isn't a huge problem because we write to the same
-        # S3 key each time, so this doesn't actually grow in size. 
-    
-    create_or_update_alias(result['Version'], alias)
+        # S3 key each time, so this doesn't actually grow in size.
+
+    create_or_update_alias(result["Version"], alias)
     eprint("Successfully deployed as '%s'." % alias)
 
 
-
-
-def encode_result(data, ctx = {}):
+def encode_result(data, ctx={}):
     # TODO: automatically choose the highest pickle version which is compatible
 
-    data = base64.b64encode(zlib.compress(pickle.dumps(data, 2))).decode('utf-8')
+    data = base64.b64encode(zlib.compress(pickle.dumps(data, 2))).decode("utf-8")
 
-    result = {
-        "type": "b64+zlib+pickle",
-        "data": data
-    }
+    result = {"type": "b64+zlib+pickle", "data": data}
 
     if len(data) > 5 * 1024 * 1024 and ctx.has_key("s3_bucket"):
         import zipfile
         import json
         import boto3
-        s3Client = boto3.client('s3')
+
+        s3Client = boto3.client("s3")
 
         contents = json.dumps(result)
         hashed = hashlib.md5(contents).hexdigest()
-        s3_key = 'chunks/' + hashed
+        s3_key = "chunks/" + hashed
 
-        s3Client.put_object(
-            Bucket=ctx['s3_bucket'],
-            Body=contents,
-            Key=s3_key
-        )
+        s3Client.put_object(Bucket=ctx["s3_bucket"], Body=contents, Key=s3_key)
 
-        result = {
-            "type": "s3",
-            "s3_key": s3_key,
-            "s3_bucket": ctx['s3_bucket']
-        }
+        result = {"type": "s3", "s3_key": s3_key, "s3_bucket": ctx["s3_bucket"]}
 
     return result
 
 
 def decode_result(data):
-    if data['type'] == 's3':
+    if data["type"] == "s3":
         import io
         import boto3
-        s3Client = boto3.client('s3')
-        res = s3Client.get_object(
-            Bucket=data['s3_bucket'],
-            Key=data['s3_key']
-        )
-        return decode_result(json.load(res['Body']))
 
-    elif data['type'] == 'b64+zlib+pickle':
-        return pickle.loads(zlib.decompress(base64.b64decode(data['data'])))
+        s3Client = boto3.client("s3")
+        res = s3Client.get_object(Bucket=data["s3_bucket"], Key=data["s3_key"])
+        return decode_result(json.load(res["Body"]))
+
+    elif data["type"] == "b64+zlib+pickle":
+        return pickle.loads(zlib.decompress(base64.b64decode(data["data"])))
+
 
 def save(key, data):
     ensure_setup()
     threadLocal.s3Client.put_object(
-        Bucket=BUCKET_PREFIX + accountID,
-        Body=data,
-        Key=key
+        Bucket=BUCKET_PREFIX + accountID, Body=data, Key=key
     )
+
 
 def load(key):
     ensure_setup()
-    res = threadLocal.s3Client.get_object(
-        Bucket=BUCKET_PREFIX + accountID,
-        Key=key
-    )
-    return res['Body'].read()
+    res = threadLocal.s3Client.get_object(Bucket=BUCKET_PREFIX + accountID, Key=key)
+    return res["Body"].read()
 
 
 def invoke_thread(info):
     ensure_setup()
     result = threadLocal.lambdaClient.invoke(
         FunctionName=FUNCTION_NAME,
-        InvocationType='RequestResponse',
-        LogType='Tail',
-        Payload=info['payload'],
-        Qualifier=info['alias']
+        InvocationType="RequestResponse",
+        LogType="Tail",
+        Payload=info["payload"],
+        Qualifier=info["alias"],
     )
 
-    known_aliases.add(info['alias'])
-    data = json.load(result['Payload'])
-    for line in base64.b64decode(result['LogResult']).decode('utf-8').split('\n')[:-1]:
-        is_aws = line.startswith('START ') or line.startswith('END ') or line.startswith('REPORT ') or line.startswith('XRAY ')
-        if (not is_aws) or (info['verbose']):
+    known_aliases.add(info["alias"])
+    data = json.load(result["Payload"])
+    for line in base64.b64decode(result["LogResult"]).decode("utf-8").split("\n")[:-1]:
+        is_aws = (
+            line.startswith("START ")
+            or line.startswith("END ")
+            or line.startswith("REPORT ")
+            or line.startswith("XRAY ")
+        )
+        if (not is_aws) or (info["verbose"]):
             print(line)
 
     if data is not None:
-        if 'result' in data:
-            return decode_result(data['result'])
-        elif 'pretty' in data:
-            return data['pretty']
+        if "result" in data:
+            return decode_result(data["result"])
+        elif "pretty" in data:
+            return data["pretty"]
         else:
-            if 'errorType' in data and data['errorMessage']:
-                if data['errorType'] == 'NameError':
-                    nameMatch = re.search("(?:name ')([^']+)(?:' is not defined)", data['errorMessage'])
+            if "errorType" in data and data["errorMessage"]:
+                if data["errorType"] == "NameError":
+                    nameMatch = re.search(
+                        "(?:name ')([^']+)(?:' is not defined)", data["errorMessage"]
+                    )
                     if nameMatch:
                         name = nameMatch.group(1)
                         if isinstance(ipython.user_ns.get(name, None), ModuleType):
-                            eprint("To use the module '" + name + "' with eigensheep you need to import it in this cell.")
-                elif data['errorType'] == 'ModuleNotFoundError':
-                    nameMatch = re.search("(?:No module named ')([^']+)(?:')", data['errorMessage'])
+                            eprint(
+                                "To use the module '"
+                                + name
+                                + "' with eigensheep you need to import it in this cell."
+                            )
+                elif data["errorType"] == "ModuleNotFoundError":
+                    nameMatch = re.search(
+                        "(?:No module named ')([^']+)(?:')", data["errorMessage"]
+                    )
                     if nameMatch:
                         name = nameMatch.group(1)
-                        eprint("AWS Lambda doesn't include '" + name + "' by default."
-                            +"\nTo use '""" + name + "' in Lambda, add the corresponding PyPI package to your eigensheep call above."
-                            +"\nThis might look like: '%%eigensheep pypi_package_exporting_""" + name + "'.")
+                        eprint(
+                            "AWS Lambda doesn't include '"
+                            + name
+                            + "' by default."
+                            + "\nTo use '"
+                            ""
+                            + name
+                            + "' in Lambda, add the corresponding PyPI package to your eigensheep call above."
+                            + "\nThis might look like: '%%eigensheep pypi_package_exporting_"
+                            "" + name + "'."
+                        )
             return data
 
-def map(run_config, data = [0]):
+
+def map(run_config, data=[0]):
     ensure_setup()
-    
+
     if isinstance(run_config, str):
         run_config = storedLambdas[run_config]
 
     count = len(data)
     tasks = []
-    box_config = run_config['box']
+    box_config = run_config["box"]
 
     for i, data in enumerate(data):
         payload = {
-            'type': 'RUN',
-            'code': run_config['code'],
-            'index': i,
-            's3_bucket': BUCKET_PREFIX + accountID,
+            "type": "RUN",
+            "code": run_config["code"],
+            "index": i,
+            "s3_bucket": BUCKET_PREFIX + accountID,
         }
 
-        if 'globals' in run_config:
-            payload['globals'] = run_config['globals']
+        if "globals" in run_config:
+            payload["globals"] = run_config["globals"]
 
-        if 'python' in box_config['runtime']:
-            payload['data'] = encode_result(data, {
-                's3_bucket': BUCKET_PREFIX + accountID,
-            })
-            
+        if "python" in box_config["runtime"]:
+            payload["data"] = encode_result(
+                data, {"s3_bucket": BUCKET_PREFIX + accountID}
+            )
 
-        tasks.append({
-            'alias': run_config['alias'],
-            'verbose': run_config.get('verbose', False),
-            'payload': json.dumps(payload)
-        })
+        tasks.append(
+            {
+                "alias": run_config["alias"],
+                "verbose": run_config.get("verbose", False),
+                "payload": json.dumps(payload),
+            }
+        )
 
     if count == 1:
         return [invoke_thread(tasks[0])]
@@ -643,7 +736,7 @@ def map(run_config, data = [0]):
         return list(tqdm(executor.map(invoke_thread, tasks), total=count))
 
 
-def invoke(run_config, data = 0):
+def invoke(run_config, data=0):
     return map(run_config, [data])[0]
 
 
@@ -651,36 +744,41 @@ def invoke(run_config, data = 0):
 # tracebacks for certain exceptions where the stack trace only serves
 # to confuse and startle. Normal exceptions pass through and are given
 # tracebacks as usual, but QuietErrors only print the message. This
-# is useful for syntax errors and configuration errors. 
+# is useful for syntax errors and configuration errors.
 
 # Based on: https://stackoverflow.com/a/46224586
+
 
 class QuietError(Exception):
     def __init__(self, error):
         super(QuietError, self).__init__(str(error))
         self.error = error
 
+
 def hide_traceback(**kwargs):
-    
+
     # This is a workaround for Python 2.7 support, as the module
     # gets unloaded and all the imports show up as None
     import sys as sys
+
     ipython = get_ipython()
 
     etype, value, tb = sys.exc_info()
 
     # We can't use subclass because QuietError unloaded in Python 2.7
     # if an exception is raised during the import process
-    if etype.__name__ == 'QuietError':
+    if etype.__name__ == "QuietError":
         value = value.error
         etype = type(value)
-        return ipython._showtraceback(etype, value, ipython.InteractiveTB.get_exception_only(etype, value))
+        return ipython._showtraceback(
+            etype, value, ipython.InteractiveTB.get_exception_only(etype, value)
+        )
     return ipython.original_showtraceback(**kwargs)
 
 
 def run_cell_magic(magic_name, line, cell):
-    if magic_name in ('eigensheep', 'es') and cell == '':
-        cell = '\n\n'
+    if magic_name in ("eigensheep", "es") and cell == "":
+        cell = "\n\n"
     return ipython.original_run_cell_magic(magic_name, line, cell)
 
 
@@ -700,21 +798,21 @@ except Exception as e:
     setup_error = e
 
 # This traceback code needs to happen before
-# show_setup() where we throw an exception. 
+# show_setup() where we throw an exception.
 # because we don't want an ugly python traceback.
 
-if not hasattr(ipython, 'original_showtraceback'):
+if not hasattr(ipython, "original_showtraceback"):
     ipython.original_showtraceback = ipython.showtraceback
 ipython.showtraceback = hide_traceback
 
 
-if not hasattr(ipython, 'original_run_cell_magic'):
+if not hasattr(ipython, "original_run_cell_magic"):
     ipython.original_run_cell_magic = ipython.run_cell_magic
 ipython.run_cell_magic = run_cell_magic
 
 
-ipython.user_ns['SAVE'] = save
-ipython.user_ns['LOAD'] = load
+ipython.user_ns["SAVE"] = save
+ipython.user_ns["LOAD"] = load
 
 if setup_error:
     show_setup()
