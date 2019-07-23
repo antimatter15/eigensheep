@@ -261,7 +261,7 @@ DATA + 42
 
 <details>
 <summary>Example: Natural Language Processing with `spacy` Lambda layer</summary>
-<pre style="padding-left: 20px">%%eigensheep %%eigensheep --layer arn:aws:lambda:us-east-1:113088814899:layer:Klayers-python37-spacy:1
+<pre style="padding-left: 20px">%%eigensheep --layer arn:aws:lambda:us-east-1:113088814899:layer:Klayers-python37-spacy:1
 import spacy
 nlp = spacy.load('/opt/en_core_web_sm-2.1.0')
 data = nlp('I met a traveller from an antique land')
