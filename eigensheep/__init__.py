@@ -160,7 +160,7 @@ def show_setup():
             </svg>
         </a>
             <br />
-            <i style="color: #666">This stack creates an S3 bucket, Lambda function, execution role for the Lambda, and an IAM user with access limited to the S3 bucket and Lambda function. Eigensheep Lambdas have no access to any of your AWS resources besides its designated S3 bucket. You can verify the behavior of the stack by clicking on "View in Designer" at the linked wizard.</i>
+            <i style="color: #666">This stack creates an S3 bucket, Lambda function, execution role for the Lambda, and an IAM user with access limited reading/writing to the designated S3 bucket, updating the provisioned Lambda function, and reading from public Lambda layers. Eigensheep Lambdas have no access to any of your AWS resources besides its designated S3 bucket. You can verify the behavior of the stack by clicking on "View in Designer" at the linked wizard.</i>
         </li>
         <li>Click through the prompts accepting the default values for the Eigensheep stack.
             <br />
