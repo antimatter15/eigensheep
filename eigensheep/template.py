@@ -148,6 +148,7 @@ def encode_result(data):
 def decode_result(data):
     if data["type"] == "s3":
         import io
+        import json
         return decode_result(json.loads(load(data['s3_key'])))
 
     elif data["type"] == "b64+zlib+pickle":
