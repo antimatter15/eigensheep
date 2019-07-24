@@ -22,7 +22,9 @@ Eigensheep gives your Lambda code full access both to packages from PyPi, and to
 - Automatically copies variables from notebook scope
 
 
-![Sequentially opening 50 websites with Puppeteer and taking screenshots takes 105.6 seconds, while the same task split into 50 concurrent Lambda invocations finishes in 9.8 seconds](images/chart.png)
+<img src="https://raw.githubusercontent.com/antimatter15/lambdu/master/images/chart.png" alt="Sequentially opening 50 websites with Puppeteer and taking screenshots takes 105.6 seconds, while the same task split into 50 concurrent Lambda invocations finishes in 9.8 seconds" width="500"  />
+
+Here we compare the task of capturing screenshots of the 50 most popular websites (according to Moz) with Pyppeteer. In the first bar, we're doing this sequentially with a Python `for` loop. In the second one, each website is run as a different Lambda. The estimated cost of the full sequential test (at the current `us-east-1` price) is $0.0051 (or 0.07% of the monthly free quota). The estimated cost of the full parallel test is $0.0073 (or 0.11% of the monthly free quota).
 
 ## Getting Started
 
