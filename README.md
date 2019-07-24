@@ -9,6 +9,18 @@ To instantly provision and run your code on 1000 tiny VMs, prefix a cell with `%
 
 Eigensheep gives your Lambda code full access both to packages from PyPi, and to layers from [Lambda Layers](https://docs.aws.amazon.com/lambda/latest/dg/configuration-layers.html), including typically tricky-to-install things like `Z3`, `ffmpeg`, and `puppeteer`.
 
+
+## Features
+
+- Just prefix a cell with `%%eigensheep` to run it on AWS Lambda
+- Automatically generates Lambda deployment packages with pre-installed dependencies via `pip`. 
+- Supports Lambda Layers for easily including external libraries like Z3, FFmpeg, Puppeteer/Chromium, LibreOffice, Tesseract, YOLOv3 on Darknet, and Spacy
+- Automatically caches Lambda configurations
+- Supports large response sizes by saving results to S3
+- Integrates `tqdm` for progress indications
+- Easy setup and configuration powered by AWS CloudFormation 
+
+
 ## Getting Started
 
 Open up your Terminal and install `eigensheep` with `pip`
