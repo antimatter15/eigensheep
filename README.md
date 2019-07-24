@@ -14,12 +14,15 @@ Eigensheep gives your Lambda code full access both to packages from PyPi, and to
 
 - Just prefix a cell with `%%eigensheep` to run it on AWS Lambda
 - Automatically generates Lambda deployment packages with pre-installed dependencies via `pip`. 
-- Supports Lambda Layers for easily including external libraries like Z3, FFmpeg, Puppeteer/Chromium, LibreOffice, Tesseract, YOLOv3 on Darknet, and Spacy
+- Supports Lambda Layers for easily including external libraries like Z3, FFmpeg, Puppeteer/Chromium, LibreOffice, Tesseract OCR, YOLOv3 on Darknet, and Spacy
 - Automatically caches Lambda configurations
-- Supports large response sizes by saving results to S3
+- Supports response sizes over 6MB by saving results to S3
 - Integrates `tqdm` for progress indications
 - Easy setup and configuration powered by AWS CloudFormation 
+- Automatically copies variables from notebook scope
 
+
+![Sequentially opening 50 websites with Puppeteer and taking screenshots takes 105.6 seconds, while the same task split into 50 concurrent Lambda invocations finishes in 9.8 seconds](images/chart.png)
 
 ## Getting Started
 
