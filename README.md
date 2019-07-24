@@ -18,7 +18,7 @@ Perhaps most importantly, Eigensheep has a [very easy setup process](#getting-st
 - Supports Lambda Layers for easily including external libraries like Z3, FFmpeg, Puppeteer/Chromium, LibreOffice, Tesseract OCR, YOLOv3 on Darknet, and Spacy
 - Automatically caches Lambda configurations
 - Supports response sizes over 6MB by saving results to S3
-- Integrates `tqdm` for progress indications
+- Integrates `tqdm` for interactively displaying progress
 - Easy setup and configuration powered by AWS CloudFormation 
 - Automatically copies variables from notebook scope
 
@@ -43,7 +43,7 @@ Follow the on-screen instructions to configure AWS credentials. AWS credentials 
 
 Once Eigensheep is set up, you can run any code on Lambda by prefixing the cell with `%%eigensheep`. You can include dependencies from `pip` by typing `%%eigensheep <list of package names>`, for example `%%eigensheep requests numpy`. You can invoke a cell multiple times concurrently with the `-n` parameter, for example `%%eigensheep -n 100`. 
 
-[<img src="https://raw.githubusercontent.com/antimatter15/lambdu/master/images/parallel.gif" alt="eigensheep usage" width="500"  />](https://www.youtube.com/watch?v=jdurk2DRdAs)
+[<img src="https://raw.githubusercontent.com/antimatter15/lambdu/master/images/puppet.gif" alt="eigensheep usage" width="500"  />](https://www.youtube.com/watch?v=jdurk2DRdAs)
 
 ## Frequently Asked Questions
 
