@@ -9,6 +9,17 @@ To instantly provision and run your code on 1000 tiny VMs, prefix a cell with `%
 
 Eigensheep takes the complexity out of installing and bundling external depencies, deploying and invoking Lambdas, and retrieving results larger than the 6mb Lambda response limit.
 
+
+## Features
+
+- Just prefix a cell with `%%eigensheep` to run it on AWS Lambda
+- Automatically generates Lambda deployment packages with pre-installed dependencies via `pip`. 
+- Supports Lambda Layers for easily including external libraries like Z3, FFmpeg, Puppeteer/Chromium, LibreOffice, Tesseract, YOLOv3 on Darknet, and Spacy
+- Automatically caches Lambda configurations
+- Integrates `tqdm` for progress indications
+- Easy setup and configuration powered by AWS CloudFormation 
+
+
 ## Getting Started
 
 Open up your Terminal and install `eigensheep` with `pip`
