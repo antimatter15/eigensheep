@@ -43,30 +43,34 @@ def lambda_handler(event, context):
 
 
 def lambda_build(event, context):
-    import subprocess
+    import sys
     import shutil
     os.chdir("/tmp")
     path = "/tmp/deps"
     if os.path.exists(path):
         shutil.rmtree(path)
-    proc = subprocess.Popen(
-        [
-            "/var/lang/bin/pip",
+
+    if sys.version_info[0] == 2:
+        import boto3
+        import zipfile
+        s3Client = boto3.client("s3")
+        req = s3Client.download_file("eigensheep", "pip27.zip","/tmp/pip27.zip")
+        with zipfile.ZipFile('/tmp/pip27.zip', 'r') as zip_ref:
+            zip_ref.extractall('/tmp/pkg')
+        sys.path.append('/tmp/pkg/site-packages')
+
+    from pip import _internal
+    _internal.main([
             "install",
             "--no-cache-dir",
             "--progress-bar=off",
             "--target=" + path,
         ]
-        + event["requirements"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
+        + event["requirements"])
 
-    output = proc.communicate()[0]
     package = build_lambda_package(path)
-
     save(event['s3_key'], package)
-    return {"output": output.decode("utf-8")}
+    return { }
 
 
 def zipdir(ziph, path, realpath):

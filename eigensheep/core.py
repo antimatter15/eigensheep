@@ -575,9 +575,11 @@ def ensure_deps(box_config):
             "s3_key": "lambda_package.zip",
         }
         result = invoke_thread(
-            {"alias": bootstrap_alias, "verbose": False, "payload": json.dumps(payload)}
+            {"alias": bootstrap_alias, "verbose": False, "redirectStdout": True, "payload": json.dumps(payload)}
         )
-        eprint(result["output"])
+        if 'errorMessage' in result:
+            eprint(result)
+            raise Exception(result['errorMessage'])
         if len(box_config.get("layers", [])) > 0:
             eprint("Installing lambda layers (this will take a while)...")
         update_lambda_config(box_config)
@@ -616,7 +618,10 @@ def invoke_thread(info):
             or line.startswith("XRAY ")
         )
         if (not is_aws) or (info["verbose"]):
-            print(line)
+            if info.get('redirectStdout', False):
+                eprint(line)
+            else:
+                print(line)
 
     if data is not None:
         if "result" in data:
