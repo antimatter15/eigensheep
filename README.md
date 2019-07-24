@@ -4,7 +4,10 @@
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/eigensheep.svg)
 ![PyPI - License](https://img.shields.io/pypi/l/eigensheep.svg)
 
-Eigensheep lets you easily run cells in Jupyter Notebooks on AWS Lambda with massive parallelism. You can instantly provision and run your code on 1000 different tiny VMs by simply prefixing a cell with `%%eigensheep -n 1000`. 
+Eigensheep is a python package that lets you effortlessly run Jupyter Notebook cells on AWS Lambda with massive parallelism. 
+To instantly provision and run your code on 1000 tiny VMs, prefix a cell with `%%eigensheep -n 1000`. 
+
+Eigensheep takes the complexity out of installing and bundling external depencies, deploying and invoking Lambdas, and retrieving results larger than the 6mb Lambda response limit.
 
 ## Getting Started
 
