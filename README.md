@@ -9,6 +9,7 @@ To instantly provision and run your code on 1000 tiny VMs, prefix a cell with `%
 
 Eigensheep gives your Lambda code full access both to packages from PyPi, and to layers from [Lambda Layers](https://docs.aws.amazon.com/lambda/latest/dg/configuration-layers.html), including typically tricky-to-install things like `Z3`, `ffmpeg`, and `puppeteer`.
 
+Perhaps most importantly, Eigensheep has a [very easy setup process](#getting-started).
 
 ## Features
 
