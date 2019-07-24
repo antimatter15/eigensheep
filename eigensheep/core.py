@@ -76,6 +76,11 @@ parser.add_argument(
     "-n", type=int, default=1, help="number of parallel lambdas to invoke"
 )
 parser.add_argument(
+    "--data",
+    type=str,
+    help="name of global variable to map over",
+)
+parser.add_argument(
     "--memory",
     default=DEFAULT_MEMORY,
     type=int,
@@ -459,7 +464,9 @@ class EigensheepMagics(Magics):
             )
             return None
 
-        if args.n > 1:
+        if args.data:
+            return map(run_config, ipython.user_ns[args.data])
+        elif args.n > 1:
             return map(run_config, range(args.n))
         else:
             return invoke(run_config)
