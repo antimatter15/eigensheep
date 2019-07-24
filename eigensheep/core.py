@@ -57,9 +57,11 @@ known_aliases = set([])
 
 IS_PYTHON2 = sys.version_info[0] == 2
 
+
 def get_ctx():
     ensure_setup()
     return threadLocal
+
 
 template.get_ctx = get_ctx
 
@@ -400,9 +402,7 @@ class EigensheepMagics(Magics):
         if args.rm or args.reinstall:
             ctx = get_ctx()
             try:
-                ali = ctx.lambdaClient.get_alias(
-                    FunctionName=FUNCTION_NAME, Name=alias
-                )
+                ali = ctx.lambdaClient.get_alias(FunctionName=FUNCTION_NAME, Name=alias)
                 if alias in known_aliases:
                     known_aliases.remove(alias)
                 ctx.lambdaClient.delete_alias(
@@ -491,17 +491,13 @@ def make_alias_name(box_config):
 def remove_all_aliases():
     global known_aliases
     ctx = get_ctx()
-    aliases = ctx.lambdaClient.list_aliases(FunctionName=FUNCTION_NAME)[
-        "Aliases"
+    aliases = ctx.lambdaClient.list_aliases(FunctionName=FUNCTION_NAME)["Aliases"]
+    versions = ctx.lambdaClient.list_versions_by_function(FunctionName=FUNCTION_NAME)[
+        "Versions"
     ]
-    versions = ctx.lambdaClient.list_versions_by_function(
-        FunctionName=FUNCTION_NAME
-    )["Versions"]
 
     for ali in aliases:
-        ctx.lambdaClient.delete_alias(
-            FunctionName=FUNCTION_NAME, Name=ali["Name"]
-        )
+        ctx.lambdaClient.delete_alias(FunctionName=FUNCTION_NAME, Name=ali["Name"])
 
     for ver in versions:
         if ver["Version"] == "$LATEST":
@@ -575,11 +571,16 @@ def ensure_deps(box_config):
             "s3_key": "lambda_package.zip",
         }
         result = invoke_thread(
-            {"alias": bootstrap_alias, "verbose": False, "redirectStdout": True, "payload": json.dumps(payload)}
+            {
+                "alias": bootstrap_alias,
+                "verbose": False,
+                "redirectStdout": True,
+                "payload": json.dumps(payload),
+            }
         )
-        if 'errorMessage' in result:
+        if "errorMessage" in result:
             eprint(result)
-            raise Exception(result['errorMessage'])
+            raise Exception(result["errorMessage"])
         if len(box_config.get("layers", [])) > 0:
             eprint("Installing lambda layers (this will take a while)...")
         update_lambda_config(box_config)
@@ -595,7 +596,6 @@ def ensure_deps(box_config):
 
     create_or_update_alias(result["Version"], alias)
     eprint("Successfully deployed as '%s'." % alias)
-
 
 
 def invoke_thread(info):
@@ -618,7 +618,7 @@ def invoke_thread(info):
             or line.startswith("XRAY ")
         )
         if (not is_aws) or (info["verbose"]):
-            if info.get('redirectStdout', False):
+            if info.get("redirectStdout", False):
                 eprint(line)
             else:
                 print(line)
@@ -670,6 +670,7 @@ def invoke_thread(info):
 
 # Based on: https://stackoverflow.com/a/46224586
 
+
 class QuietError(Exception):
     def __init__(self, error):
         super(QuietError, self).__init__(str(error))
@@ -699,28 +700,28 @@ def hide_traceback(**kwargs):
 
 # By default Jupyter will warn if a cell magic is invoked with a blank
 # body. This is a bit annoying when we're trying to use a cell magic
-# to simply install a particular configuration. Thus we override the 
-# ipython.run_cell_magic method to shortcut this test. 
+# to simply install a particular configuration. Thus we override the
+# ipython.run_cell_magic method to shortcut this test.
 def run_cell_magic(magic_name, line, cell):
     if magic_name in ("eigensheep", "es") and cell == "":
         cell = "\n\n"
     return ipython.original_run_cell_magic(magic_name, line, cell)
 
 
-# Save to the designated Eigensheep S3 bucket. This is part of the public API. 
+# Save to the designated Eigensheep S3 bucket. This is part of the public API.
 def save(key, data):
     ctx = get_ctx()
-    ctx.s3Client.put_object(
-        Bucket=ctx.bucket, Body=data, Key=key
-    )
+    ctx.s3Client.put_object(Bucket=ctx.bucket, Body=data, Key=key)
 
-# Load from the designated Eigensheep S3 bucket. This is part of the public API. 
+
+# Load from the designated Eigensheep S3 bucket. This is part of the public API.
 def load(key):
     ctx = get_ctx()
     res = ctx.s3Client.get_object(Bucket=ctx.bucket, Key=key)
     return res["Body"].read()
 
-# This is part of the public API. 
+
+# This is part of the public API.
 def map(run_config, data=[0]):
     ctx = get_ctx()
 
@@ -758,7 +759,8 @@ def map(run_config, data=[0]):
     else:
         return list(tqdm(executor.map(invoke_thread, tasks), total=count))
 
-# This is part of the public API. 
+
+# This is part of the public API.
 def invoke(run_config, data=0):
     return map(run_config, [data])[0]
 
@@ -806,7 +808,7 @@ if setup_error:
     # this module. This makes it so that the next time the module is imported
     # we can try the whole loading process again. This is what happens when
     # the user presses the "Submit" button— we trigger a re-execution of the
-    # cell that contains the Eigensheep import. 
+    # cell that contains the Eigensheep import.
     raise QuietError(setup_error)
 else:
     show_welcome()

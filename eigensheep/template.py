@@ -13,6 +13,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "python_lambda_deps"))
 def get_ctx():
     raise NotImplementedError()
 
+
 def save(key, data):
     ctx = get_ctx()
     ctx.s3Client.put_object(Bucket=ctx.bucket, Body=data, Key=key)
@@ -26,14 +27,19 @@ def load(key):
 
 def lambda_handler(event, context):
     global get_ctx
+
     def get_ctx_impl():
         import boto3
-        class Context: pass
+
+        class Context:
+            pass
+
         ctx = Context()
 
         ctx.s3Client = boto3.client("s3")
-        ctx.bucket = event['s3_bucket']
+        ctx.bucket = event["s3_bucket"]
         return ctx
+
     get_ctx = get_ctx_impl
 
     if event["type"] == "RUN":
@@ -45,6 +51,7 @@ def lambda_handler(event, context):
 def lambda_build(event, context):
     import sys
     import shutil
+
     os.chdir("/tmp")
     path = "/tmp/deps"
     if os.path.exists(path):
@@ -53,24 +60,23 @@ def lambda_build(event, context):
     if sys.version_info[0] == 2:
         import boto3
         import zipfile
+
         s3Client = boto3.client("s3")
-        req = s3Client.download_file("eigensheep", "pip27.zip","/tmp/pip27.zip")
-        with zipfile.ZipFile('/tmp/pip27.zip', 'r') as zip_ref:
-            zip_ref.extractall('/tmp/pkg')
-        sys.path.append('/tmp/pkg/site-packages')
+        req = s3Client.download_file("eigensheep", "pip27.zip", "/tmp/pip27.zip")
+        with zipfile.ZipFile("/tmp/pip27.zip", "r") as zip_ref:
+            zip_ref.extractall("/tmp/pkg")
+        sys.path.append("/tmp/pkg/site-packages")
 
     from pip import _internal
-    _internal.main([
-            "install",
-            "--no-cache-dir",
-            "--progress-bar=off",
-            "--target=" + path,
-        ]
-        + event["requirements"])
+
+    _internal.main(
+        ["install", "--no-cache-dir", "--progress-bar=off", "--target=" + path]
+        + event["requirements"]
+    )
 
     package = build_lambda_package(path)
-    save(event['s3_key'], package)
-    return { }
+    save(event["s3_key"], package)
+    return {}
 
 
 def zipdir(ziph, path, realpath):
@@ -139,12 +145,12 @@ def encode_result(data):
         import json
 
         contents = json.dumps(result)
-        hashed = hashlib.sha256(contents.encode('utf-8')).hexdigest()
+        hashed = hashlib.sha256(contents.encode("utf-8")).hexdigest()
         s3_key = "chunks/" + hashed
 
         save(s3_key, contents)
 
-        result = {"type": "s3", "s3_key": s3_key }
+        result = {"type": "s3", "s3_key": s3_key}
 
     return result
 
@@ -153,7 +159,8 @@ def decode_result(data):
     if data["type"] == "s3":
         import io
         import json
-        return decode_result(json.loads(load(data['s3_key'])))
+
+        return decode_result(json.loads(load(data["s3_key"])))
 
     elif data["type"] == "b64+zlib+pickle":
         return pickle.loads(zlib.decompress(base64.b64decode(data["data"])))
