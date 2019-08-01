@@ -4,12 +4,10 @@
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/eigensheep.svg)
 ![PyPI - License](https://img.shields.io/pypi/l/eigensheep.svg)
 
-Eigensheep is a python package that lets you effortlessly run Jupyter Notebook cells on AWS Lambda, with massive parallelism. 
+Eigensheep is a python package, with a [very easy setup process](#getting-started), that lets you effortlessly run Jupyter Notebook cells on AWS Lambda, enabling massive parallelism. 
 To instantly provision and run your code on 1000 tiny VMs, prefix a cell with `%%eigensheep -n 1000`. 
 
 Eigensheep gives your Lambda code full access both to packages from PyPi, and to layers from [Lambda Layers](https://docs.aws.amazon.com/lambda/latest/dg/configuration-layers.html), including typically tricky-to-install things like `Z3`, `ffmpeg`, and `puppeteer`.
-
-Perhaps most importantly, Eigensheep has a [very easy setup process](#getting-started).
 
 ## Features
 
